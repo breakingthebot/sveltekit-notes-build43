@@ -8,8 +8,10 @@ export interface Note {
   title: string;
   content: string;
   tags: string[];
+  folder: string;
   color: string;
   isPinned: boolean;
+  isFavorite: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,8 +23,10 @@ let notesDb: Note[] = [
     title: '🚀 SvelteKit 5 Server-Side Loaders',
     content: 'SvelteKit +page.server.ts load functions allow fetching data on the server before rendering HTML, providing zero-JS initial page loads and seamless SSR SEO.',
     tags: ['sveltekit', 'web-dev', 'architecture'],
+    folder: 'Work',
     color: '#06b6d4',
     isPinned: true,
+    isFavorite: true,
     createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
     updatedAt: new Date(Date.now() - 86400000 * 2).toISOString()
   },
@@ -31,8 +35,10 @@ let notesDb: Note[] = [
     title: '💡 Atomic Component Design Standards',
     content: 'Break UI down into small, single-responsibility atomic components. Keep UI, state, and business logic separated for maximum reusability and testability.',
     tags: ['design', 'best-practices'],
+    folder: 'Ideas',
     color: '#10b981',
     isPinned: true,
+    isFavorite: false,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
     updatedAt: new Date(Date.now() - 86400000).toISOString()
   },
@@ -41,15 +47,30 @@ let notesDb: Note[] = [
     title: '📝 Weekly Sprint Roadmap & Ideas',
     content: 'Focus on shipping 15-20 iterations per build folder. Validate clean unit test runs and production build compilations before deploying to Vercel.',
     tags: ['productivity', 'notes'],
+    folder: 'Work',
     color: '#a855f7',
     isPinned: false,
+    isFavorite: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
 ];
 
-export function getAllNotes(filterTag?: string, searchQuery?: string): Note[] {
+export function getAllNotes(
+  filterTag?: string, 
+  searchQuery?: string, 
+  filterFolder?: string, 
+  favoriteOnly?: boolean
+): Note[] {
   let list = [...notesDb];
+
+  if (favoriteOnly) {
+    list = list.filter(n => n.isFavorite);
+  }
+
+  if (filterFolder && filterFolder !== 'all') {
+    list = list.filter(n => n.folder.toLowerCase() === filterFolder.toLowerCase());
+  }
 
   if (filterTag && filterTag !== 'all') {
     list = list.filter(n => n.tags.includes(filterTag.toLowerCase()));
@@ -60,13 +81,15 @@ export function getAllNotes(filterTag?: string, searchQuery?: string): Note[] {
     list = list.filter(n => 
       n.title.toLowerCase().includes(q) || 
       n.content.toLowerCase().includes(q) ||
-      n.tags.some(t => t.toLowerCase().includes(q))
+      n.tags.some(t => t.toLowerCase().includes(q)) ||
+      n.folder.toLowerCase().includes(q)
     );
   }
 
-  // Sort: Pinned notes first, then latest updated first
+  // Sort: Pinned notes first, then favorites, then latest updated first
   return list.sort((a, b) => {
     if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+    if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   });
 }
@@ -77,7 +100,16 @@ export function getAllTags(): string[] {
   return Array.from(tagSet).sort();
 }
 
-export function createNote(title: string, content: string, tagsStr: string, color?: string): Note {
+export function getAllFolders(): string[] {
+  const DEFAULT_FOLDERS = ['Work', 'Personal', 'Ideas', 'Archive'];
+  const folderSet = new Set<string>(DEFAULT_FOLDERS);
+  notesDb.forEach(n => {
+    if (n.folder) folderSet.add(n.folder);
+  });
+  return Array.from(folderSet);
+}
+
+export function createNote(title: string, content: string, tagsStr: string, folder?: string, color?: string): Note {
   const tags = tagsStr
     .split(',')
     .map(t => t.trim().toLowerCase())
@@ -88,8 +120,10 @@ export function createNote(title: string, content: string, tagsStr: string, colo
     title: title.trim() || 'Untitled Note',
     content: content.trim(),
     tags: tags.length > 0 ? tags : ['general'],
+    folder: folder || 'Work',
     color: color || '#06b6d4',
     isPinned: false,
+    isFavorite: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -98,7 +132,14 @@ export function createNote(title: string, content: string, tagsStr: string, colo
   return newNote;
 }
 
-export function updateNote(id: string, title: string, content: string, tagsStr: string, color?: string): Note | null {
+export function updateNote(
+  id: string, 
+  title: string, 
+  content: string, 
+  tagsStr: string, 
+  folder?: string, 
+  color?: string
+): Note | null {
   const idx = notesDb.findIndex(n => n.id === id);
   if (idx === -1) return null;
 
@@ -112,6 +153,7 @@ export function updateNote(id: string, title: string, content: string, tagsStr: 
     title: title.trim() || notesDb[idx].title,
     content: content.trim(),
     tags: tags.length > 0 ? tags : notesDb[idx].tags,
+    folder: folder || notesDb[idx].folder,
     color: color || notesDb[idx].color,
     updatedAt: new Date().toISOString()
   };
@@ -130,6 +172,24 @@ export function togglePinNote(id: string): Note | null {
   if (idx === -1) return null;
 
   notesDb[idx].isPinned = !notesDb[idx].isPinned;
+  notesDb[idx].updatedAt = new Date().toISOString();
+  return notesDb[idx];
+}
+
+export function toggleFavoriteNote(id: string): Note | null {
+  const idx = notesDb.findIndex(n => n.id === id);
+  if (idx === -1) return null;
+
+  notesDb[idx].isFavorite = !notesDb[idx].isFavorite;
+  notesDb[idx].updatedAt = new Date().toISOString();
+  return notesDb[idx];
+}
+
+export function moveNoteToFolder(id: string, folder: string): Note | null {
+  const idx = notesDb.findIndex(n => n.id === id);
+  if (idx === -1) return null;
+
+  notesDb[idx].folder = folder;
   notesDb[idx].updatedAt = new Date().toISOString();
   return notesDb[idx];
 }

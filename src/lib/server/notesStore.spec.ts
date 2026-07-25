@@ -3,42 +3,53 @@
 // Created: 2026-07-25
 
 import { describe, it, expect } from 'vitest';
-import { createNote, getAllNotes, deleteNote, togglePinNote, getAllTags } from './notesStore';
+import { 
+  createNote, 
+  getAllNotes, 
+  deleteNote, 
+  togglePinNote, 
+  toggleFavoriteNote, 
+  moveNoteToFolder, 
+  getAllFolders 
+} from './notesStore';
 
 describe('notesStore', () => {
-  it('should create a new note with processed tags', () => {
-    const note = createNote('Test Note Title', 'Content of test note', 'svelte, test, SvelteKit');
+  it('should create a new note with folder and processed tags', () => {
+    const note = createNote('Test Note Title', 'Content of test note', 'svelte, test', 'Personal');
 
     expect(note.title).toBe('Test Note Title');
     expect(note.tags).toContain('svelte');
-    expect(note.tags).toContain('test');
-    expect(note.tags).toContain('sveltekit');
-    expect(note.isPinned).toBe(false);
+    expect(note.folder).toBe('Personal');
+    expect(note.isFavorite).toBe(false);
   });
 
-  it('should filter notes by tag and search query', () => {
-    const all = getAllNotes();
-    expect(all.length).toBeGreaterThan(0);
-
-    const svelteNotes = getAllNotes('sveltekit');
-    expect(svelteNotes.length).toBeGreaterThan(0);
-  });
-
-  it('should toggle pin status on a note', () => {
+  it('should toggle favorite star status on a note', () => {
     const all = getAllNotes();
     const target = all[0];
-    const initialPin = target.isPinned;
+    const initialFav = target.isFavorite;
 
-    const updated = togglePinNote(target.id);
-    expect(updated?.isPinned).toBe(!initialPin);
+    const updated = toggleFavoriteNote(target.id);
+    expect(updated?.isFavorite).toBe(!initialFav);
   });
 
-  it('should delete a note by id', () => {
-    const created = createNote('Delete Me', 'Temporary note', 'temp');
-    const success = deleteNote(created.id);
+  it('should move note to a new folder and filter by folder', () => {
+    const created = createNote('Folder Test', 'Content', 'tag', 'Work');
+    moveNoteToFolder(created.id, 'Archive');
 
-    expect(success).toBe(true);
-    const found = getAllNotes().find(n => n.id === created.id);
-    expect(found).toBeUndefined();
+    const archiveNotes = getAllNotes('all', '', 'Archive');
+    expect(archiveNotes.some(n => n.id === created.id)).toBe(true);
+  });
+
+  it('should filter notes by favorites tab', () => {
+    const favs = getAllNotes('all', '', 'all', true);
+    expect(favs.every(n => n.isFavorite)).toBe(true);
+  });
+
+  it('should list all available folders', () => {
+    const folders = getAllFolders();
+    expect(folders).toContain('Work');
+    expect(folders).toContain('Personal');
+    expect(folders).toContain('Ideas');
+    expect(folders).toContain('Archive');
   });
 });

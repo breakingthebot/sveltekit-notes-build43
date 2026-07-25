@@ -5,6 +5,15 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-25
+
+### Added
+- Integrated **Favorite / Starred Notes & Custom Category Folders** in `src/lib/server/notesStore.ts` and `src/routes/+page.svelte`.
+- Added Category Folder Tab Bar (`📁 All Notes`, `⭐ Favorites`, `💼 Work`, `👤 Personal`, `💡 Ideas`, `📦 Archive`).
+- Added 1-Click `⭐` / `☆` Favorite Star toggle form actions (`?/toggleFavorite`).
+- Added folder assignment dropdown selector in the Note Modal editor and folder query filtering.
+- Added unit tests in `src/lib/server/notesStore.spec.ts`.
+
 ## [0.3.0] - 2026-07-25
 
 ### Added

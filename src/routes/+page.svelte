@@ -1,5 +1,5 @@
 <!-- src/routes/+page.svelte -->
-<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export Engine). -->
+<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export + Folders + Favorites). -->
 <!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts, src/lib/services/exportService.ts -->
 <!-- Created: 2026-07-25 -->
 
@@ -25,6 +25,7 @@
   let formTitle = $state('');
   let formContent = $state('');
   let formTags = $state('');
+  let formFolder = $state('Work');
   let formColor = $state('#06b6d4');
 
   function openCreateModal() {
@@ -32,6 +33,7 @@
     formTitle = '';
     formContent = '';
     formTags = '';
+    formFolder = 'Work';
     formColor = '#06b6d4';
     activeTab = 'edit';
     isModalOpen = true;
@@ -42,6 +44,7 @@
     formTitle = note.title;
     formContent = note.content;
     formTags = note.tags.join(', ');
+    formFolder = note.folder || 'Work';
     formColor = note.color;
     activeTab = 'edit';
     isModalOpen = true;
@@ -83,7 +86,7 @@
 </script>
 
 <svelte:head>
-  <title>SvelteKit Notes Vault — Full Stack Notes & Tag Manager</title>
+  <title>SvelteKit Notes Vault — Full Stack Notes & Folder Manager</title>
 </svelte:head>
 
 <main class="container">
@@ -93,7 +96,7 @@
       <span class="logo-icon">🗂️</span>
       <div>
         <h1 class="app-title">SvelteKit Notes Vault</h1>
-        <p class="subtitle">Full-stack server-rendered notes app with Markdown, tags & backup exports</p>
+        <p class="subtitle">Full-stack server-rendered notes app with Category Folders & Starred Favorites</p>
       </div>
     </div>
 
@@ -110,21 +113,52 @@
     </div>
   </header>
 
+  <!-- Category Folders & Favorites Tab Bar -->
+  <section class="folder-bar card">
+    <div class="folder-tabs">
+      <a 
+        href="?folder=all{data.selectedTag && data.selectedTag !== 'all' ? `&tag=${data.selectedTag}` : ''}" 
+        class="folder-tab"
+        class:active={data.selectedFolder === 'all' && !data.favoriteOnly}
+      >
+        📁 All Notes
+      </a>
+
+      <a 
+        href="?fav=true{data.selectedTag && data.selectedTag !== 'all' ? `&tag=${data.selectedTag}` : ''}" 
+        class="folder-tab fav-tab"
+        class:active={data.favoriteOnly}
+      >
+        ⭐ Favorites
+      </a>
+
+      {#each data.folders as folder}
+        <a 
+          href="?folder={folder}{data.selectedTag && data.selectedTag !== 'all' ? `&tag=${data.selectedTag}` : ''}" 
+          class="folder-tab"
+          class:active={data.selectedFolder === folder && !data.favoriteOnly}
+        >
+          {#if folder === 'Work'}💼{:else if folder === 'Personal'}👤{:else if folder === 'Ideas'}💡{:else if folder === 'Archive'}📦{:else}📂{/if} {folder}
+        </a>
+      {/each}
+    </div>
+  </section>
+
   <!-- Filter & Search Toolbar -->
   <section class="toolbar-section card">
     <!-- Tag Filter Pills -->
     <div class="tag-filter-pills">
       <a 
-        href="?tag=all{data.searchQuery ? `&q=${data.searchQuery}` : ''}" 
+        href="?tag=all{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}" 
         class="filter-pill"
         class:active={data.selectedTag === 'all'}
       >
-        🌟 All Notes ({data.notes.length})
+        🌟 All Tags ({data.notes.length})
       </a>
 
       {#each data.tags as tag}
         <a 
-          href="?tag={tag}{data.searchQuery ? `&q=${data.searchQuery}` : ''}" 
+          href="?tag={tag}{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}" 
           class="filter-pill"
           class:active={data.selectedTag === tag}
         >
@@ -138,11 +172,14 @@
       {#if data.selectedTag && data.selectedTag !== 'all'}
         <input type="hidden" name="tag" value={data.selectedTag} />
       {/if}
+      {#if data.selectedFolder && data.selectedFolder !== 'all'}
+        <input type="hidden" name="folder" value={data.selectedFolder} />
+      {/if}
       <input 
         type="text" 
         name="q" 
         value={data.searchQuery}
-        placeholder="🔍 Search notes or tags..." 
+        placeholder="🔍 Search notes, tags, or folders..." 
         class="search-input"
       />
       <button type="submit" class="btn btn-secondary">Search</button>
@@ -154,11 +191,16 @@
     {#each data.notes as note (note.id)}
       <article class="note-card card fade-in" style="border-top: 4px solid {note.color};">
         <div class="note-head">
-          <h3 class="note-title">{note.title}</h3>
+          <div class="title-box">
+            <h3 class="note-title">{note.title}</h3>
+            <span class="folder-badge">📁 {note.folder}</span>
+          </div>
           
-          {#if note.isPinned}
-            <span class="pinned-badge">📌 PINNED</span>
-          {/if}
+          <div class="head-badges">
+            {#if note.isPinned}
+              <span class="pinned-badge">📌 PINNED</span>
+            {/if}
+          </div>
         </div>
 
         <!-- Formatted Markdown Content -->
@@ -178,6 +220,14 @@
           <span class="updated-time">Updated {new Date(note.updatedAt).toLocaleDateString()}</span>
 
           <div class="card-actions">
+            <!-- Favorite Star Form Action -->
+            <form method="POST" action="?/toggleFavorite">
+              <input type="hidden" name="id" value={note.id} />
+              <button type="submit" class="icon-btn fav-btn" title={note.isFavorite ? 'Remove Favorite' : 'Star Favorite'}>
+                {note.isFavorite ? '⭐' : '☆'}
+              </button>
+            </form>
+
             <!-- Download Single Note Buttons -->
             <button type="button" onclick={() => downloadNoteMd(note)} class="icon-btn" title="Download .md Markdown file">
               📥 .md
@@ -212,13 +262,13 @@
     {:else}
       <div class="empty-state card">
         📭 <strong>No notes found</strong>
-        <p>No notes match your current filter or search query. Click <strong>➕ Create New Note</strong> above to add one!</p>
+        <p>No notes match your current folder, tag filter, or search query. Click <strong>➕ Create New Note</strong> above to add one!</p>
       </div>
     {/each}
   </section>
 </main>
 
-<!-- Create / Edit Modal with Markdown Live Preview Tabs -->
+<!-- Create / Edit Modal with Markdown Live Preview Tabs & Folder Selector -->
 {#if isModalOpen}
   <div class="modal-backdrop fade-in">
     <div class="modal-card card">
@@ -263,6 +313,15 @@
             required 
             class="form-input"
           />
+        </div>
+
+        <div class="form-group">
+          <label for="note-folder-select">Category Folder</label>
+          <select id="note-folder-select" name="folder" bind:value={formFolder} class="form-input">
+            {#each data.folders as f}
+              <option value={f}>{f}</option>
+            {/each}
+          </select>
         </div>
 
         {#if activeTab === 'edit'}
@@ -368,6 +427,41 @@
     flex-wrap: wrap;
   }
 
+  .folder-bar {
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  .folder-tabs {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .folder-tab {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+  }
+
+  .folder-tab.active, .folder-tab:hover {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+  }
+
+  .folder-tab.fav-tab.active {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--accent-amber);
+    border-color: var(--accent-amber);
+  }
+
   .toolbar-section {
     padding: 16px 20px;
     display: flex;
@@ -445,10 +539,28 @@
     gap: 10px;
   }
 
+  .title-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
   .note-title {
     font-size: 16px;
     font-weight: 700;
     color: var(--text-primary);
+  }
+
+  .folder-badge {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .head-badges {
+    display: flex;
+    gap: 4px;
   }
 
   .pinned-badge {
@@ -497,7 +609,7 @@
 
   .card-actions {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     flex-wrap: wrap;
   }
 
@@ -513,6 +625,10 @@
 
   .icon-btn:hover {
     background: rgba(255, 255, 255, 0.15);
+  }
+
+  .icon-btn.fav-btn:hover {
+    color: var(--accent-amber);
   }
 
   .icon-btn.danger:hover {
