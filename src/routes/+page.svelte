@@ -1,6 +1,6 @@
 <!-- src/routes/+page.svelte -->
-<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export + Folders + Favorites + Analytics + Trash Bin). -->
-<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts, src/lib/services/exportService.ts, src/lib/services/noteAnalyticsService.ts -->
+<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export + Folders + Favorites + Analytics + Trash Bin + Cmd+K Command Palette). -->
+<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts, src/lib/services/exportService.ts, src/lib/services/noteAnalyticsService.ts, src/lib/services/commandPaletteService.ts -->
 <!-- Created: 2026-07-25 -->
 
 <script lang="ts">
@@ -16,10 +16,13 @@
     triggerDownload 
   } from '$lib/services/exportService';
   import { analyzeNoteText } from '$lib/services/noteAnalyticsService';
+  import { filterPaletteActions, type PaletteAction } from '$lib/services/commandPaletteService';
 
   let { data }: { data: PageData } = $props();
 
   let isModalOpen = $state(false);
+  let isPaletteOpen = $state(false);
+  let paletteQuery = $state('');
   let editingNote: Note | null = $state(null);
   let activeTab: 'edit' | 'preview' = $state('edit');
 
@@ -31,6 +34,66 @@
 
   // Derived live analytics for modal editor
   let modalAnalytics = $derived(analyzeNoteText(formContent));
+
+  // Command palette static + dynamic note actions
+  let basePaletteActions: PaletteAction[] = $derived([
+    { id: 'act-new', title: '➕ Create New Note', category: 'Actions', icon: '➕', shortcut: 'Ctrl+N', actionKey: 'create_note' },
+    { id: 'act-json', title: '📥 Export Vault JSON Backup', category: 'Actions', icon: '📥', actionKey: 'export_json' },
+    { id: 'act-md', title: '📄 Export All Notes Markdown', category: 'Actions', icon: '📄', actionKey: 'export_md' },
+    { id: 'act-fav', title: '⭐ View Starred Favorites', category: 'Filters', icon: '⭐', actionKey: 'filter_fav' },
+    { id: 'act-trash', title: '🗑️ Open Trash Bin Recovery', category: 'Filters', icon: '🗑️', actionKey: 'filter_trash' },
+    { id: 'fld-work', title: '💼 Filter Work Folder', category: 'Folders', icon: '💼', actionKey: 'folder_work' },
+    { id: 'fld-personal', title: '👤 Filter Personal Folder', category: 'Folders', icon: '👤', actionKey: 'folder_personal' },
+    { id: 'fld-ideas', title: '💡 Filter Ideas Folder', category: 'Folders', icon: '💡', actionKey: 'folder_ideas' },
+    { id: 'fld-archive', title: '📦 Filter Archive Folder', category: 'Folders', icon: '📦', actionKey: 'folder_archive' },
+
+    ...data.notes.map((n): PaletteAction => ({
+      id: `note-${n.id}`,
+      title: `Jump to: ${n.title}`,
+      category: 'Notes',
+      icon: '📝',
+      actionKey: 'edit_note',
+      noteId: n.id
+    }))
+  ]);
+
+  let filteredPaletteActions = $derived(filterPaletteActions(basePaletteActions, paletteQuery));
+
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      isPaletteOpen = !isPaletteOpen;
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      openCreateModal();
+    } else if (e.key === 'Escape') {
+      isPaletteOpen = false;
+      isModalOpen = false;
+    }
+  }
+
+  function executePaletteAction(action: PaletteAction) {
+    isPaletteOpen = false;
+    paletteQuery = '';
+
+    if (action.actionKey === 'create_note') {
+      openCreateModal();
+    } else if (action.actionKey === 'export_json') {
+      exportVaultJsonAction();
+    } else if (action.actionKey === 'export_md') {
+      exportVaultMarkdownAction();
+    } else if (action.actionKey === 'filter_fav') {
+      window.location.href = '?fav=true';
+    } else if (action.actionKey === 'filter_trash') {
+      window.location.href = '?trash=true';
+    } else if (action.actionKey.startsWith('folder_')) {
+      const fName = action.actionKey.replace('folder_', '');
+      window.location.href = `?folder=${fName}`;
+    } else if (action.actionKey === 'edit_note' && action.noteId) {
+      const target = data.notes.find(n => n.id === action.noteId);
+      if (target) openEditModal(target);
+    }
+  }
 
   function openCreateModal() {
     editingNote = null;
@@ -89,8 +152,10 @@
   }
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <svelte:head>
-  <title>SvelteKit Notes Vault — Full Stack Notes & Folder Manager</title>
+  <title>SvelteKit Notes Vault — Full Stack Notes & Cmd+K Palette</title>
 </svelte:head>
 
 <main class="container">
@@ -100,16 +165,16 @@
       <span class="logo-icon">🗂️</span>
       <div>
         <h1 class="app-title">SvelteKit Notes Vault</h1>
-        <p class="subtitle">Full-stack server-rendered notes app with Soft Delete & Trash Bin Recovery</p>
+        <p class="subtitle">Full-stack server-rendered notes app with Cmd+K Quick Action Command Palette</p>
       </div>
     </div>
 
     <div class="header-actions">
+      <button type="button" onclick={() => isPaletteOpen = true} class="btn btn-secondary palette-btn" title="Open Quick Action Command Palette">
+        ⚡ ⌘K Quick Actions
+      </button>
       <button type="button" onclick={exportVaultJsonAction} class="btn btn-secondary" title="Export Vault JSON Backup">
         📥 Export JSON
-      </button>
-      <button type="button" onclick={exportVaultMarkdownAction} class="btn btn-secondary" title="Export All Notes Markdown">
-        📄 Export Markdown
       </button>
       <button type="button" onclick={openCreateModal} class="btn btn-primary">
         ➕ Create New Note
@@ -325,6 +390,39 @@
   </section>
 </main>
 
+<!-- Cmd+K Quick Action Command Palette Modal -->
+{#if isPaletteOpen}
+  <div class="modal-backdrop fade-in">
+    <div class="palette-card card">
+      <div class="palette-header">
+        <span class="palette-icon">⚡</span>
+        <input 
+          type="text" 
+          bind:value={paletteQuery} 
+          placeholder="Type a command or search notes... (Press Esc to close)"
+          class="palette-input"
+          autofocus
+        />
+        <button type="button" onclick={() => isPaletteOpen = false} class="close-btn">❌</button>
+      </div>
+
+      <div class="palette-list">
+        {#each filteredPaletteActions as action (action.id)}
+          <button type="button" onclick={() => executePaletteAction(action)} class="palette-item">
+            <span class="item-icon">{action.icon}</span>
+            <span class="item-title">{action.title}</span>
+            {#if action.shortcut}
+              <kbd class="shortcut-kbd">{action.shortcut}</kbd>
+            {/if}
+          </button>
+        {:else}
+          <div class="palette-empty">No matching commands found.</div>
+        {/each}
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- Create / Edit Modal with Markdown Live Preview Tabs & Live Analytics Bar -->
 {#if isModalOpen}
   <div class="modal-backdrop fade-in">
@@ -492,6 +590,11 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  .palette-btn {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
   }
 
   .folder-bar {
@@ -765,6 +868,84 @@
     justify-content: center;
     align-items: center;
     padding: 20px;
+  }
+
+  .palette-card {
+    width: 100%;
+    max-width: 500px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .palette-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+  }
+
+  .palette-icon { font-size: 20px; }
+
+  .palette-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    outline: none;
+  }
+
+  .palette-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .palette-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .palette-item:hover {
+    background: rgba(6, 182, 212, 0.15);
+    border-color: var(--accent-cyan);
+    color: #fff;
+  }
+
+  .item-icon { font-size: 16px; }
+  .item-title { flex: 1; }
+
+  .shortcut-kbd {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .palette-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
   }
 
   .modal-card {

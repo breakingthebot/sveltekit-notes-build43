@@ -5,6 +5,15 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-07-25
+
+### Added
+- Integrated **Keyboard Shortcuts & Quick Action Command Palette** in `src/lib/services/commandPaletteService.ts` and `src/routes/+page.svelte`.
+- Added global hotkey listener `Ctrl+K` / `Cmd+K` for command palette toggling, `Ctrl+N` for new note creation, and `Esc` for modal dismissal.
+- Added header command palette trigger button (`⚡ ⌘K Quick Actions`).
+- Added real-time quick jump search for notes, backup export triggers, and folder filter shortcuts.
+- Added unit tests in `src/lib/services/commandPaletteService.spec.ts`.
+
 ## [0.6.0] - 2026-07-25
 
 ### Added
