@@ -1,0 +1,10 @@
+{
+	"runtime": "nodejs22.x",
+	"handler": "..\\..\\..\\..\\..\\..\\Users\\marve\\Desktop\\AI-286-Builds\\Build_43\\.svelte-kit\\vercel-tmp\\index.js",
+	"launcherType": "Nodejs",
+	"experimentalResponseStreaming": true,
+	"framework": {
+		"slug": "sveltekit",
+		"version": "2.70.1"
+	}
+}

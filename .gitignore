@@ -1,0 +1,13 @@
+AGENTS.md
+BUILD_NOTES.md
+.env
+.env.*
+!.env.example
+node_modules/
+.svelte-kit/
+build/
+dist/
+.DS_Store
+*.log
+venv/
+__pycache__/
