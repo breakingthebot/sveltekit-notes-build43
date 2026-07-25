@@ -1,6 +1,6 @@
 <!-- src/routes/+page.svelte -->
-<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export + Folders + Favorites). -->
-<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts, src/lib/services/exportService.ts -->
+<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export + Folders + Favorites + Analytics). -->
+<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts, src/lib/services/exportService.ts, src/lib/services/noteAnalyticsService.ts -->
 <!-- Created: 2026-07-25 -->
 
 <script lang="ts">
@@ -15,6 +15,7 @@
     generateVaultMarkdownDump, 
     triggerDownload 
   } from '$lib/services/exportService';
+  import { analyzeNoteText } from '$lib/services/noteAnalyticsService';
 
   let { data }: { data: PageData } = $props();
 
@@ -27,6 +28,9 @@
   let formTags = $state('');
   let formFolder = $state('Work');
   let formColor = $state('#06b6d4');
+
+  // Derived live analytics for modal editor
+  let modalAnalytics = $derived(analyzeNoteText(formContent));
 
   function openCreateModal() {
     editingNote = null;
@@ -96,7 +100,7 @@
       <span class="logo-icon">🗂️</span>
       <div>
         <h1 class="app-title">SvelteKit Notes Vault</h1>
-        <p class="subtitle">Full-stack server-rendered notes app with Category Folders & Starred Favorites</p>
+        <p class="subtitle">Full-stack server-rendered notes app with Word Count, Reading Time & Sentiment Analytics</p>
       </div>
     </div>
 
@@ -189,6 +193,7 @@
   <!-- Notes Grid Section -->
   <section class="notes-grid">
     {#each data.notes as note (note.id)}
+      {@const analytics = analyzeNoteText(note.content)}
       <article class="note-card card fade-in" style="border-top: 4px solid {note.color};">
         <div class="note-head">
           <div class="title-box">
@@ -206,6 +211,15 @@
         <!-- Formatted Markdown Content -->
         <div class="note-content md-rendered">
           {@html renderMarkdown(note.content)}
+        </div>
+
+        <!-- Live Analytics Badge Row -->
+        <div class="analytics-badges-row">
+          <span class="analytics-chip" title="Estimated Reading Time">⏱️ {analytics.readingTimeText}</span>
+          <span class="analytics-chip" title="Word Count">📝 {analytics.wordCount} words</span>
+          <span class="analytics-chip sentiment-chip sentiment-{analytics.sentiment.toLowerCase()}" title="Sentiment Valence Score">
+            {analytics.sentimentEmoji} {analytics.sentiment}
+          </span>
         </div>
 
         <!-- Tag Pills -->
@@ -268,7 +282,7 @@
   </section>
 </main>
 
-<!-- Create / Edit Modal with Markdown Live Preview Tabs & Folder Selector -->
+<!-- Create / Edit Modal with Markdown Live Preview Tabs & Live Analytics Bar -->
 {#if isModalOpen}
   <div class="modal-backdrop fade-in">
     <div class="modal-card card">
@@ -365,6 +379,16 @@
             <input type="hidden" name="content" value={formContent} />
           </div>
         {/if}
+
+        <!-- Live Typing Analytics Bar inside Modal -->
+        <div class="modal-analytics-bar card">
+          <span>📝 <strong>{modalAnalytics.wordCount}</strong> words</span>
+          <span>🔤 <strong>{modalAnalytics.charCountWithSpaces}</strong> chars</span>
+          <span>⏱️ <strong>{modalAnalytics.readingTimeText}</strong></span>
+          <span class="sentiment-tag sentiment-{modalAnalytics.sentiment.toLowerCase()}">
+            {modalAnalytics.sentimentEmoji} {modalAnalytics.sentiment}
+          </span>
+        </div>
 
         <div class="form-group">
           <label for="note-tags-input">Tags (comma separated)</label>
@@ -580,6 +604,26 @@
     flex: 1;
   }
 
+  .analytics-badges-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding-top: 6px;
+  }
+
+  .analytics-chip {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+  }
+
+  .sentiment-chip.sentiment-positive { color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); }
+  .sentiment-chip.sentiment-negative { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+
   .note-tags {
     display: flex;
     gap: 6px;
@@ -755,6 +799,19 @@
     max-height: 250px;
     overflow-y: auto;
   }
+
+  .modal-analytics-bar {
+    padding: 8px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .sentiment-tag.sentiment-positive { color: var(--accent-emerald); }
+  .sentiment-tag.sentiment-negative { color: #ef4444; }
 
   .muted-text { font-size: 13px; color: var(--text-muted); font-style: italic; }
 

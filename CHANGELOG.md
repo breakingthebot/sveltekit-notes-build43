@@ -5,6 +5,14 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-25
+
+### Added
+- Integrated **Word Count, Reading Time & Sentiment Analytics per Note** in `src/lib/services/noteAnalyticsService.ts` and `src/routes/+page.svelte`.
+- Added Live Analytics Badges row on note cards (`⏱️ Reading Time`, `📝 Word Count`, `😊 Sentiment Valence`).
+- Added real-time typing analytics bar inside the Note Modal editor (`Words`, `Chars`, `Reading Time`, `Sentiment`).
+- Added unit tests in `src/lib/services/noteAnalyticsService.spec.ts`.
+
 ## [0.4.0] - 2026-07-25
 
 ### Added
