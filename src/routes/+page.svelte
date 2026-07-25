@@ -1,12 +1,20 @@
 <!-- src/routes/+page.svelte -->
-<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown Engine). -->
-<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts -->
+<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export Engine). -->
+<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts, src/lib/services/exportService.ts -->
 <!-- Created: 2026-07-25 -->
 
 <script lang="ts">
   import type { PageData } from './$types';
   import type { Note } from '$lib/server/notesStore';
   import { renderMarkdown } from '$lib/services/markdownService';
+  import { 
+    slugify, 
+    generateNoteMarkdown, 
+    generateNoteHtml, 
+    generateVaultJson, 
+    generateVaultMarkdownDump, 
+    triggerDownload 
+  } from '$lib/services/exportService';
 
   let { data }: { data: PageData } = $props();
 
@@ -47,6 +55,31 @@
   function insertFormat(prefix: string, suffix: string = '') {
     formContent = `${formContent}${prefix}text${suffix}`;
   }
+
+  function downloadNoteMd(note: Note) {
+    const md = generateNoteMarkdown(note);
+    const filename = `${slugify(note.title)}.md`;
+    triggerDownload(md, filename, 'text/markdown');
+  }
+
+  function downloadNoteHtml(note: Note) {
+    const bodyHtml = renderMarkdown(note.content);
+    const html = generateNoteHtml(note, bodyHtml);
+    const filename = `${slugify(note.title)}.html`;
+    triggerDownload(html, filename, 'text/html');
+  }
+
+  function exportVaultJsonAction() {
+    const json = generateVaultJson(data.notes);
+    const filename = `notes-vault-backup-${Date.now()}.json`;
+    triggerDownload(json, filename, 'application/json');
+  }
+
+  function exportVaultMarkdownAction() {
+    const dump = generateVaultMarkdownDump(data.notes);
+    const filename = `notes-vault-dump-${Date.now()}.md`;
+    triggerDownload(dump, filename, 'text/markdown');
+  }
 </script>
 
 <svelte:head>
@@ -60,13 +93,21 @@
       <span class="logo-icon">🗂️</span>
       <div>
         <h1 class="app-title">SvelteKit Notes Vault</h1>
-        <p class="subtitle">Full-stack server-rendered notes app with Markdown support & tag filtering</p>
+        <p class="subtitle">Full-stack server-rendered notes app with Markdown, tags & backup exports</p>
       </div>
     </div>
 
-    <button type="button" onclick={openCreateModal} class="btn btn-primary">
-      ➕ Create New Note
-    </button>
+    <div class="header-actions">
+      <button type="button" onclick={exportVaultJsonAction} class="btn btn-secondary" title="Export Vault JSON Backup">
+        📥 Export JSON
+      </button>
+      <button type="button" onclick={exportVaultMarkdownAction} class="btn btn-secondary" title="Export All Notes Markdown">
+        📄 Export Markdown
+      </button>
+      <button type="button" onclick={openCreateModal} class="btn btn-primary">
+        ➕ Create New Note
+      </button>
+    </div>
   </header>
 
   <!-- Filter & Search Toolbar -->
@@ -137,6 +178,14 @@
           <span class="updated-time">Updated {new Date(note.updatedAt).toLocaleDateString()}</span>
 
           <div class="card-actions">
+            <!-- Download Single Note Buttons -->
+            <button type="button" onclick={() => downloadNoteMd(note)} class="icon-btn" title="Download .md Markdown file">
+              📥 .md
+            </button>
+            <button type="button" onclick={() => downloadNoteHtml(note)} class="icon-btn" title="Download .html webpage">
+              📄 .html
+            </button>
+
             <!-- Pin Form Action -->
             <form method="POST" action="?/togglePin">
               <input type="hidden" name="id" value={note.id} />
@@ -313,6 +362,12 @@
   .app-title { font-size: 24px; font-weight: 800; font-family: var(--font-heading); }
   .subtitle { font-size: 13px; color: var(--text-secondary); }
 
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
   .toolbar-section {
     padding: 16px 20px;
     display: flex;
@@ -443,6 +498,7 @@
   .card-actions {
     display: flex;
     gap: 6px;
+    flex-wrap: wrap;
   }
 
   .icon-btn {
