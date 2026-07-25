@@ -1,5 +1,5 @@
 <!-- src/routes/+page.svelte -->
-<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export + Folders + Favorites + Analytics). -->
+<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export + Folders + Favorites + Analytics + Trash Bin). -->
 <!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts, src/lib/services/exportService.ts, src/lib/services/noteAnalyticsService.ts -->
 <!-- Created: 2026-07-25 -->
 
@@ -100,7 +100,7 @@
       <span class="logo-icon">🗂️</span>
       <div>
         <h1 class="app-title">SvelteKit Notes Vault</h1>
-        <p class="subtitle">Full-stack server-rendered notes app with Word Count, Reading Time & Sentiment Analytics</p>
+        <p class="subtitle">Full-stack server-rendered notes app with Soft Delete & Trash Bin Recovery</p>
       </div>
     </div>
 
@@ -117,13 +117,13 @@
     </div>
   </header>
 
-  <!-- Category Folders & Favorites Tab Bar -->
+  <!-- Category Folders & Favorites & Trash Tab Bar -->
   <section class="folder-bar card">
     <div class="folder-tabs">
       <a 
         href="?folder=all{data.selectedTag && data.selectedTag !== 'all' ? `&tag=${data.selectedTag}` : ''}" 
         class="folder-tab"
-        class:active={data.selectedFolder === 'all' && !data.favoriteOnly}
+        class:active={data.selectedFolder === 'all' && !data.favoriteOnly && !data.showTrash}
       >
         📁 All Notes
       </a>
@@ -131,7 +131,7 @@
       <a 
         href="?fav=true{data.selectedTag && data.selectedTag !== 'all' ? `&tag=${data.selectedTag}` : ''}" 
         class="folder-tab fav-tab"
-        class:active={data.favoriteOnly}
+        class:active={data.favoriteOnly && !data.showTrash}
       >
         ⭐ Favorites
       </a>
@@ -140,20 +140,42 @@
         <a 
           href="?folder={folder}{data.selectedTag && data.selectedTag !== 'all' ? `&tag=${data.selectedTag}` : ''}" 
           class="folder-tab"
-          class:active={data.selectedFolder === folder && !data.favoriteOnly}
+          class:active={data.selectedFolder === folder && !data.favoriteOnly && !data.showTrash}
         >
           {#if folder === 'Work'}💼{:else if folder === 'Personal'}👤{:else if folder === 'Ideas'}💡{:else if folder === 'Archive'}📦{:else}📂{/if} {folder}
         </a>
       {/each}
+
+      <a 
+        href="?trash=true" 
+        class="folder-tab trash-tab"
+        class:active={data.showTrash}
+      >
+        🗑️ Trash Bin ({data.trashCount})
+      </a>
     </div>
   </section>
+
+  {#if data.showTrash}
+    <!-- Trash Bin Active Banner -->
+    <section class="trash-banner card">
+      <div class="banner-text">
+        ⚠️ <strong>Trash Bin Active:</strong> Notes here are soft-deleted and can be restored anytime or permanently purged.
+      </div>
+      <form method="POST" action="?/emptyTrash">
+        <button type="submit" class="btn btn-secondary danger" disabled={data.trashCount === 0}>
+          🔥 Empty Trash Bin ({data.trashCount})
+        </button>
+      </form>
+    </section>
+  {/if}
 
   <!-- Filter & Search Toolbar -->
   <section class="toolbar-section card">
     <!-- Tag Filter Pills -->
     <div class="tag-filter-pills">
       <a 
-        href="?tag=all{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}" 
+        href="?tag=all{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}{data.showTrash ? '&trash=true' : ''}" 
         class="filter-pill"
         class:active={data.selectedTag === 'all'}
       >
@@ -162,7 +184,7 @@
 
       {#each data.tags as tag}
         <a 
-          href="?tag={tag}{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}" 
+          href="?tag={tag}{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}{data.showTrash ? '&trash=true' : ''}" 
           class="filter-pill"
           class:active={data.selectedTag === tag}
         >
@@ -178,6 +200,9 @@
       {/if}
       {#if data.selectedFolder && data.selectedFolder !== 'all'}
         <input type="hidden" name="folder" value={data.selectedFolder} />
+      {/if}
+      {#if data.showTrash}
+        <input type="hidden" name="trash" value="true" />
       {/if}
       <input 
         type="text" 
@@ -234,49 +259,67 @@
           <span class="updated-time">Updated {new Date(note.updatedAt).toLocaleDateString()}</span>
 
           <div class="card-actions">
-            <!-- Favorite Star Form Action -->
-            <form method="POST" action="?/toggleFavorite">
-              <input type="hidden" name="id" value={note.id} />
-              <button type="submit" class="icon-btn fav-btn" title={note.isFavorite ? 'Remove Favorite' : 'Star Favorite'}>
-                {note.isFavorite ? '⭐' : '☆'}
+            {#if data.showTrash}
+              <!-- Restore Form Action -->
+              <form method="POST" action="?/restore">
+                <input type="hidden" name="id" value={note.id} />
+                <button type="submit" class="icon-btn" title="Restore Note to Active Notebook">
+                  ↩️ Restore
+                </button>
+              </form>
+
+              <!-- Permanent Purge Form Action -->
+              <form method="POST" action="?/purge">
+                <input type="hidden" name="id" value={note.id} />
+                <button type="submit" class="icon-btn danger" title="Permanently Delete Note">
+                  🔥 Purge
+                </button>
+              </form>
+            {:else}
+              <!-- Favorite Star Form Action -->
+              <form method="POST" action="?/toggleFavorite">
+                <input type="hidden" name="id" value={note.id} />
+                <button type="submit" class="icon-btn fav-btn" title={note.isFavorite ? 'Remove Favorite' : 'Star Favorite'}>
+                  {note.isFavorite ? '⭐' : '☆'}
+                </button>
+              </form>
+
+              <!-- Download Single Note Buttons -->
+              <button type="button" onclick={() => downloadNoteMd(note)} class="icon-btn" title="Download .md Markdown file">
+                📥 .md
               </button>
-            </form>
-
-            <!-- Download Single Note Buttons -->
-            <button type="button" onclick={() => downloadNoteMd(note)} class="icon-btn" title="Download .md Markdown file">
-              📥 .md
-            </button>
-            <button type="button" onclick={() => downloadNoteHtml(note)} class="icon-btn" title="Download .html webpage">
-              📄 .html
-            </button>
-
-            <!-- Pin Form Action -->
-            <form method="POST" action="?/togglePin">
-              <input type="hidden" name="id" value={note.id} />
-              <button type="submit" class="icon-btn" title={note.isPinned ? 'Unpin Note' : 'Pin Note'}>
-                {note.isPinned ? '📌' : '📍'}
+              <button type="button" onclick={() => downloadNoteHtml(note)} class="icon-btn" title="Download .html webpage">
+                📄 .html
               </button>
-            </form>
 
-            <!-- Edit Button -->
-            <button type="button" onclick={() => openEditModal(note)} class="icon-btn" title="Edit Note">
-              ✏️
-            </button>
+              <!-- Pin Form Action -->
+              <form method="POST" action="?/togglePin">
+                <input type="hidden" name="id" value={note.id} />
+                <button type="submit" class="icon-btn" title={note.isPinned ? 'Unpin Note' : 'Pin Note'}>
+                  {note.isPinned ? '📌' : '📍'}
+                </button>
+              </form>
 
-            <!-- Delete Form Action -->
-            <form method="POST" action="?/delete">
-              <input type="hidden" name="id" value={note.id} />
-              <button type="submit" class="icon-btn danger" title="Delete Note">
-                🗑️
+              <!-- Edit Button -->
+              <button type="button" onclick={() => openEditModal(note)} class="icon-btn" title="Edit Note">
+                ✏️
               </button>
-            </form>
+
+              <!-- Soft Delete Form Action -->
+              <form method="POST" action="?/delete">
+                <input type="hidden" name="id" value={note.id} />
+                <button type="submit" class="icon-btn danger" title="Move to Trash Bin">
+                  🗑️
+                </button>
+              </form>
+            {/if}
           </div>
         </div>
       </article>
     {:else}
       <div class="empty-state card">
-        📭 <strong>No notes found</strong>
-        <p>No notes match your current folder, tag filter, or search query. Click <strong>➕ Create New Note</strong> above to add one!</p>
+        📭 <strong>{data.showTrash ? 'Trash Bin is empty' : 'No notes found'}</strong>
+        <p>{data.showTrash ? 'There are no soft-deleted notes in the trash bin.' : 'No notes match your current filter or search query. Click ➕ Create New Note above to add one!'}</p>
       </div>
     {/each}
   </section>
@@ -485,6 +528,26 @@
     color: var(--accent-amber);
     border-color: var(--accent-amber);
   }
+
+  .folder-tab.trash-tab.active {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border-color: #ef4444;
+  }
+
+  .trash-banner {
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    font-size: 13px;
+    color: #fca5a5;
+  }
+
+  .btn.danger { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.4); }
+  .btn.danger:hover { background: rgba(239, 68, 68, 0.4); }
 
   .toolbar-section {
     padding: 16px 20px;

@@ -12,6 +12,8 @@ export interface Note {
   color: string;
   isPinned: boolean;
   isFavorite: boolean;
+  isDeleted: boolean;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +29,7 @@ let notesDb: Note[] = [
     color: '#06b6d4',
     isPinned: true,
     isFavorite: true,
+    isDeleted: false,
     createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
     updatedAt: new Date(Date.now() - 86400000 * 2).toISOString()
   },
@@ -39,6 +42,7 @@ let notesDb: Note[] = [
     color: '#10b981',
     isPinned: true,
     isFavorite: false,
+    isDeleted: false,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
     updatedAt: new Date(Date.now() - 86400000).toISOString()
   },
@@ -51,6 +55,7 @@ let notesDb: Note[] = [
     color: '#a855f7',
     isPinned: false,
     isFavorite: true,
+    isDeleted: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
@@ -60,20 +65,23 @@ export function getAllNotes(
   filterTag?: string, 
   searchQuery?: string, 
   filterFolder?: string, 
-  favoriteOnly?: boolean
+  favoriteOnly?: boolean,
+  showTrash: boolean = false
 ): Note[] {
-  let list = [...notesDb];
+  let list = notesDb.filter(n => (showTrash ? n.isDeleted : !n.isDeleted));
 
-  if (favoriteOnly) {
-    list = list.filter(n => n.isFavorite);
-  }
+  if (!showTrash) {
+    if (favoriteOnly) {
+      list = list.filter(n => n.isFavorite);
+    }
 
-  if (filterFolder && filterFolder !== 'all') {
-    list = list.filter(n => n.folder.toLowerCase() === filterFolder.toLowerCase());
-  }
+    if (filterFolder && filterFolder !== 'all') {
+      list = list.filter(n => n.folder.toLowerCase() === filterFolder.toLowerCase());
+    }
 
-  if (filterTag && filterTag !== 'all') {
-    list = list.filter(n => n.tags.includes(filterTag.toLowerCase()));
+    if (filterTag && filterTag !== 'all') {
+      list = list.filter(n => n.tags.includes(filterTag.toLowerCase()));
+    }
   }
 
   if (searchQuery && searchQuery.trim()) {
@@ -94,16 +102,20 @@ export function getAllNotes(
   });
 }
 
+export function getTrashCount(): number {
+  return notesDb.filter(n => n.isDeleted).length;
+}
+
 export function getAllTags(): string[] {
   const tagSet = new Set<string>();
-  notesDb.forEach(n => n.tags.forEach(t => tagSet.add(t.toLowerCase())));
+  notesDb.filter(n => !n.isDeleted).forEach(n => n.tags.forEach(t => tagSet.add(t.toLowerCase())));
   return Array.from(tagSet).sort();
 }
 
 export function getAllFolders(): string[] {
   const DEFAULT_FOLDERS = ['Work', 'Personal', 'Ideas', 'Archive'];
   const folderSet = new Set<string>(DEFAULT_FOLDERS);
-  notesDb.forEach(n => {
+  notesDb.filter(n => !n.isDeleted).forEach(n => {
     if (n.folder) folderSet.add(n.folder);
   });
   return Array.from(folderSet);
@@ -124,6 +136,7 @@ export function createNote(title: string, content: string, tagsStr: string, fold
     color: color || '#06b6d4',
     isPinned: false,
     isFavorite: false,
+    isDeleted: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -161,10 +174,35 @@ export function updateNote(
   return notesDb[idx];
 }
 
-export function deleteNote(id: string): boolean {
+export function softDeleteNote(id: string): Note | null {
+  const idx = notesDb.findIndex(n => n.id === id);
+  if (idx === -1) return null;
+
+  notesDb[idx].isDeleted = true;
+  notesDb[idx].deletedAt = new Date().toISOString();
+  return notesDb[idx];
+}
+
+export function restoreNote(id: string): Note | null {
+  const idx = notesDb.findIndex(n => n.id === id);
+  if (idx === -1) return null;
+
+  notesDb[idx].isDeleted = false;
+  delete notesDb[idx].deletedAt;
+  notesDb[idx].updatedAt = new Date().toISOString();
+  return notesDb[idx];
+}
+
+export function purgeNote(id: string): boolean {
   const initialLen = notesDb.length;
   notesDb = notesDb.filter(n => n.id !== id);
   return notesDb.length < initialLen;
+}
+
+export function emptyTrash(): number {
+  const count = notesDb.filter(n => n.isDeleted).length;
+  notesDb = notesDb.filter(n => !n.isDeleted);
+  return count;
 }
 
 export function togglePinNote(id: string): Note | null {
@@ -181,15 +219,6 @@ export function toggleFavoriteNote(id: string): Note | null {
   if (idx === -1) return null;
 
   notesDb[idx].isFavorite = !notesDb[idx].isFavorite;
-  notesDb[idx].updatedAt = new Date().toISOString();
-  return notesDb[idx];
-}
-
-export function moveNoteToFolder(id: string, folder: string): Note | null {
-  const idx = notesDb.findIndex(n => n.id === id);
-  if (idx === -1) return null;
-
-  notesDb[idx].folder = folder;
   notesDb[idx].updatedAt = new Date().toISOString();
   return notesDb[idx];
 }

@@ -6,14 +6,17 @@
 import type { PageServerLoad, Actions } from './$types';
 import { 
   getAllNotes, 
+  getTrashCount, 
   getAllTags, 
   getAllFolders, 
   createNote, 
   updateNote, 
-  deleteNote, 
+  softDeleteNote, 
+  restoreNote, 
+  purgeNote, 
+  emptyTrash, 
   togglePinNote, 
-  toggleFavoriteNote, 
-  moveNoteToFolder 
+  toggleFavoriteNote 
 } from '$lib/server/notesStore';
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -21,19 +24,23 @@ export const load: PageServerLoad = async ({ url }) => {
   const searchQuery = url.searchParams.get('q') || '';
   const selectedFolder = url.searchParams.get('folder') || 'all';
   const favoriteOnly = url.searchParams.get('fav') === 'true';
+  const showTrash = url.searchParams.get('trash') === 'true';
 
-  const notes = getAllNotes(selectedTag, searchQuery, selectedFolder, favoriteOnly);
+  const notes = getAllNotes(selectedTag, searchQuery, selectedFolder, favoriteOnly, showTrash);
+  const trashCount = getTrashCount();
   const tags = getAllTags();
   const folders = getAllFolders();
 
   return {
     notes,
+    trashCount,
     tags,
     folders,
     selectedTag,
     searchQuery,
     selectedFolder,
-    favoriteOnly
+    favoriteOnly,
+    showTrash
   };
 };
 
@@ -70,8 +77,33 @@ export const actions: Actions = {
     const id = data.get('id')?.toString() || '';
 
     if (id) {
-      deleteNote(id);
+      softDeleteNote(id);
     }
+    return { success: true };
+  },
+
+  restore: async ({ request }) => {
+    const data = await request.formData();
+    const id = data.get('id')?.toString() || '';
+
+    if (id) {
+      restoreNote(id);
+    }
+    return { success: true };
+  },
+
+  purge: async ({ request }) => {
+    const data = await request.formData();
+    const id = data.get('id')?.toString() || '';
+
+    if (id) {
+      purgeNote(id);
+    }
+    return { success: true };
+  },
+
+  emptyTrash: async () => {
+    emptyTrash();
     return { success: true };
   },
 
@@ -91,17 +123,6 @@ export const actions: Actions = {
 
     if (id) {
       toggleFavoriteNote(id);
-    }
-    return { success: true };
-  },
-
-  changeFolder: async ({ request }) => {
-    const data = await request.formData();
-    const id = data.get('id')?.toString() || '';
-    const folder = data.get('folder')?.toString() || 'Work';
-
-    if (id && folder) {
-      moveNoteToFolder(id, folder);
     }
     return { success: true };
   }

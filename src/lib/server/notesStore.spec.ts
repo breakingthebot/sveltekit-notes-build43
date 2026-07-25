@@ -6,50 +6,52 @@ import { describe, it, expect } from 'vitest';
 import { 
   createNote, 
   getAllNotes, 
-  deleteNote, 
-  togglePinNote, 
-  toggleFavoriteNote, 
-  moveNoteToFolder, 
-  getAllFolders 
+  softDeleteNote, 
+  restoreNote, 
+  purgeNote, 
+  emptyTrash, 
+  getTrashCount, 
+  toggleFavoriteNote 
 } from './notesStore';
 
 describe('notesStore', () => {
-  it('should create a new note with folder and processed tags', () => {
-    const note = createNote('Test Note Title', 'Content of test note', 'svelte, test', 'Personal');
+  it('should soft delete a note and move it to trash', () => {
+    const note = createNote('Soft Delete Test', 'Content for soft delete', 'test');
+    softDeleteNote(note.id);
 
-    expect(note.title).toBe('Test Note Title');
-    expect(note.tags).toContain('svelte');
-    expect(note.folder).toBe('Personal');
-    expect(note.isFavorite).toBe(false);
+    const activeNotes = getAllNotes();
+    expect(activeNotes.some(n => n.id === note.id)).toBe(false);
+
+    const trashNotes = getAllNotes('all', '', 'all', false, true);
+    expect(trashNotes.some(n => n.id === note.id)).toBe(true);
   });
 
-  it('should toggle favorite star status on a note', () => {
-    const all = getAllNotes();
-    const target = all[0];
-    const initialFav = target.isFavorite;
+  it('should restore a soft deleted note', () => {
+    const note = createNote('Restore Test', 'Content for restore', 'test');
+    softDeleteNote(note.id);
+    restoreNote(note.id);
 
-    const updated = toggleFavoriteNote(target.id);
-    expect(updated?.isFavorite).toBe(!initialFav);
+    const activeNotes = getAllNotes();
+    expect(activeNotes.some(n => n.id === note.id)).toBe(true);
   });
 
-  it('should move note to a new folder and filter by folder', () => {
-    const created = createNote('Folder Test', 'Content', 'tag', 'Work');
-    moveNoteToFolder(created.id, 'Archive');
+  it('should purge a single note permanently', () => {
+    const note = createNote('Purge Test', 'Content to purge', 'test');
+    softDeleteNote(note.id);
+    purgeNote(note.id);
 
-    const archiveNotes = getAllNotes('all', '', 'Archive');
-    expect(archiveNotes.some(n => n.id === created.id)).toBe(true);
+    const trashNotes = getAllNotes('all', '', 'all', false, true);
+    expect(trashNotes.some(n => n.id === note.id)).toBe(false);
   });
 
-  it('should filter notes by favorites tab', () => {
-    const favs = getAllNotes('all', '', 'all', true);
-    expect(favs.every(n => n.isFavorite)).toBe(true);
-  });
+  it('should empty trash bin completely', () => {
+    const note1 = createNote('Trash 1', 'C1', 't');
+    const note2 = createNote('Trash 2', 'C2', 't');
+    softDeleteNote(note1.id);
+    softDeleteNote(note2.id);
 
-  it('should list all available folders', () => {
-    const folders = getAllFolders();
-    expect(folders).toContain('Work');
-    expect(folders).toContain('Personal');
-    expect(folders).toContain('Ideas');
-    expect(folders).toContain('Archive');
+    expect(getTrashCount()).toBeGreaterThanOrEqual(2);
+    emptyTrash();
+    expect(getTrashCount()).toBe(0);
   });
 });

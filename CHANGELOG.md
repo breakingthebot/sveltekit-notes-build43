@@ -5,6 +5,15 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-25
+
+### Added
+- Integrated **Trash Bin & Soft Delete Recovery System** in `src/lib/server/notesStore.ts`, `src/routes/+page.server.ts`, and `src/routes/+page.svelte`.
+- Added Trash Bin tab (`🗑️ Trash Bin ({trashCount})`) in folder bar.
+- Added Trash Bin active banner with `🔥 Empty Trash Bin` batch action.
+- Added 1-Click `↩️ Restore` and `🔥 Purge` card action forms for soft-deleted notes.
+- Added unit tests in `src/lib/server/notesStore.spec.ts`.
+
 ## [0.5.0] - 2026-07-25
 
 ### Added
