@@ -1,6 +1,6 @@
 <!-- src/routes/+page.svelte -->
-<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export + Folders + Favorites + Analytics + Trash Bin + Cmd+K Command Palette). -->
-<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts, src/lib/services/exportService.ts, src/lib/services/noteAnalyticsService.ts, src/lib/services/commandPaletteService.ts -->
+<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown + Export + Folders + Favorites + Analytics + Trash Bin + Cmd+K + Revision History). -->
+<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts, src/lib/services/exportService.ts, src/lib/services/noteAnalyticsService.ts, src/lib/services/commandPaletteService.ts, src/lib/services/revisionService.ts -->
 <!-- Created: 2026-07-25 -->
 
 <script lang="ts">
@@ -17,13 +17,22 @@
   } from '$lib/services/exportService';
   import { analyzeNoteText } from '$lib/services/noteAnalyticsService';
   import { filterPaletteActions, type PaletteAction } from '$lib/services/commandPaletteService';
+  import { 
+    getRevisionsForNote, 
+    computeTextDiff, 
+    type NoteRevision 
+  } from '$lib/services/revisionService';
 
   let { data }: { data: PageData } = $props();
 
   let isModalOpen = $state(false);
   let isPaletteOpen = $state(false);
+  let isRevisionModalOpen = $state(false);
+
   let paletteQuery = $state('');
   let editingNote: Note | null = $state(null);
+  let historyNote: Note | null = $state(null);
+  let selectedRevision: NoteRevision | null = $state(null);
   let activeTab: 'edit' | 'preview' = $state('edit');
 
   let formTitle = $state('');
@@ -34,6 +43,14 @@
 
   // Derived live analytics for modal editor
   let modalAnalytics = $derived(analyzeNoteText(formContent));
+
+  // Derived revision history list & diff lines
+  let historyRevisions = $derived(historyNote ? getRevisionsForNote(historyNote.id) : []);
+  let computedDiffs = $derived(
+    historyNote && selectedRevision 
+      ? computeTextDiff(selectedRevision.content, historyNote.content) 
+      : []
+  );
 
   // Command palette static + dynamic note actions
   let basePaletteActions: PaletteAction[] = $derived([
@@ -69,6 +86,7 @@
     } else if (e.key === 'Escape') {
       isPaletteOpen = false;
       isModalOpen = false;
+      isRevisionModalOpen = false;
     }
   }
 
@@ -117,9 +135,18 @@
     isModalOpen = true;
   }
 
+  function openHistoryModal(note: Note) {
+    historyNote = note;
+    const revs = getRevisionsForNote(note.id);
+    selectedRevision = revs.length > 0 ? revs[0] : null;
+    isRevisionModalOpen = true;
+  }
+
   function closeModal() {
     isModalOpen = false;
+    isRevisionModalOpen = false;
     editingNote = null;
+    historyNote = null;
   }
 
   function insertFormat(prefix: string, suffix: string = '') {
@@ -155,7 +182,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <svelte:head>
-  <title>SvelteKit Notes Vault — Full Stack Notes & Cmd+K Palette</title>
+  <title>SvelteKit Notes Vault — Full Stack Notes & Revision History</title>
 </svelte:head>
 
 <main class="container">
@@ -165,7 +192,7 @@
       <span class="logo-icon">🗂️</span>
       <div>
         <h1 class="app-title">SvelteKit Notes Vault</h1>
-        <p class="subtitle">Full-stack server-rendered notes app with Cmd+K Quick Action Command Palette</p>
+        <p class="subtitle">Full-stack server-rendered notes app with Revision History & Line Diff Viewer</p>
       </div>
     </div>
 
@@ -349,6 +376,11 @@
                 </button>
               </form>
 
+              <!-- Revision History Button -->
+              <button type="button" onclick={() => openHistoryModal(note)} class="icon-btn" title="View Note Revision History">
+                📜
+              </button>
+
               <!-- Download Single Note Buttons -->
               <button type="button" onclick={() => downloadNoteMd(note)} class="icon-btn" title="Download .md Markdown file">
                 📥 .md
@@ -390,6 +422,64 @@
   </section>
 </main>
 
+<!-- Revision History & Line Diff Viewer Modal -->
+{#if isRevisionModalOpen && historyNote}
+  <div class="modal-backdrop fade-in">
+    <div class="history-card card">
+      <div class="modal-header">
+        <h2>📜 Revision History: {historyNote.title}</h2>
+        <button type="button" onclick={closeModal} class="close-btn">❌</button>
+      </div>
+
+      <div class="history-body">
+        <!-- Revisions Timeline List (Left Pane) -->
+        <div class="history-timeline">
+          <h3>Revisions Snapshots</h3>
+          {#each historyRevisions as rev (rev.id)}
+            <button 
+              type="button" 
+              onclick={() => selectedRevision = rev}
+              class="timeline-item"
+              class:active={selectedRevision?.id === rev.id}
+            >
+              <span class="rev-summary">{rev.changeSummary}</span>
+              <span class="rev-time">{new Date(rev.timestamp).toLocaleTimeString()}</span>
+            </button>
+          {:else}
+            <div class="muted-text">No prior revisions recorded yet. Edit note to create snapshots!</div>
+          {/each}
+        </div>
+
+        <!-- Diff Viewer (Right Pane) -->
+        <div class="history-diff-pane">
+          <div class="diff-header">
+            <h3>Line-by-Line Diff Viewer</h3>
+            {#if selectedRevision}
+              <form method="POST" action="?/revertRevision" onsubmit={closeModal}>
+                <input type="hidden" name="revId" value={selectedRevision.id} />
+                <button type="submit" class="btn btn-secondary">↩️ Revert to this Version</button>
+              </form>
+            {/if}
+          </div>
+
+          <div class="diff-box card">
+            {#if selectedRevision}
+              {#each computedDiffs as line}
+                <div class="diff-line diff-{line.type}">
+                  <span class="diff-prefix">{line.type === 'added' ? '+' : line.type === 'deleted' ? '-' : ' '}</span>
+                  <span class="diff-text">{line.text}</span>
+                </div>
+              {/each}
+            {:else}
+              <div class="muted-text">Select a revision on the left timeline to view line diffs...</div>
+            {/if}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- Cmd+K Quick Action Command Palette Modal -->
 {#if isPaletteOpen}
   <div class="modal-backdrop fade-in">
@@ -401,7 +491,6 @@
           bind:value={paletteQuery} 
           placeholder="Type a command or search notes... (Press Esc to close)"
           class="palette-input"
-          autofocus
         />
         <button type="button" onclick={() => isPaletteOpen = false} class="close-btn">❌</button>
       </div>
@@ -869,6 +958,85 @@
     align-items: center;
     padding: 20px;
   }
+
+  .history-card {
+    width: 100%;
+    max-width: 800px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .history-body {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 20px;
+    min-height: 300px;
+  }
+
+  .history-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-right: 1px solid var(--border-color);
+    padding-right: 16px;
+  }
+
+  .history-timeline h3, .diff-header h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .timeline-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .timeline-item.active {
+    border-color: var(--accent-cyan);
+    background: rgba(6, 182, 212, 0.15);
+    color: #fff;
+  }
+
+  .rev-summary { font-size: 12px; font-weight: 700; }
+  .rev-time { font-size: 10px; color: var(--text-muted); }
+
+  .history-diff-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .diff-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .diff-box {
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.4);
+    font-family: monospace;
+    font-size: 13px;
+    min-height: 220px;
+    max-height: 350px;
+    overflow-y: auto;
+  }
+
+  .diff-line { display: flex; gap: 8px; padding: 2px 4px; }
+  .diff-line.diff-added { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+  .diff-line.diff-deleted { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+  .diff-prefix { width: 12px; font-weight: 800; }
 
   .palette-card {
     width: 100%;

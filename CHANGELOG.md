@@ -5,6 +5,15 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-07-25
+
+### Added
+- Integrated **Note Version History & Revision Diff Viewer** in `src/lib/services/revisionService.ts`, `src/routes/+page.server.ts`, and `src/routes/+page.svelte`.
+- Added automatic revision snapshot recording on note creation and content updates.
+- Added Revision History modal with left-hand timeline list and right-hand line-by-line Diff Viewer (`+` green additions vs `-` red deletions).
+- Added `↩️ Revert to this Version` Form Action (`?/revertRevision`).
+- Added unit tests in `src/lib/services/revisionService.spec.ts`.
+
 ## [0.7.0] - 2026-07-25
 
 ### Added
