@@ -5,6 +5,15 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-25
+
+### Added
+- Integrated **Markdown Formatting & Live Rich Preview Engine** in `src/lib/services/markdownService.ts` and `src/routes/+page.svelte`.
+- Added Markdown parser supporting headers (`#`, `##`, `###`), bold (`**text**`), italic (`*text*`), inline code (`` `code` ``), code blocks (```code```), blockquotes (`>`), bullet lists (`-`), and links (`[text](url)`).
+- Added Modal tab switcher between `✍️ Raw Editor` and `👁️ Live Markdown Preview`.
+- Added 1-Click Markdown Format Toolbar buttons above textarea (`B`, `I`, `H3`, `code`, ```` ``` ````, `”`, `• List`).
+- Added unit tests in `src/lib/services/markdownService.spec.ts`.
+
 ## [0.1.0] - 2026-07-25
 
 ### Added

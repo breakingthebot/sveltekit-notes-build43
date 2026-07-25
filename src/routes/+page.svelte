@@ -1,16 +1,18 @@
 <!-- src/routes/+page.svelte -->
-<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes). -->
-<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts -->
+<!-- Main SvelteKit Notes Vault Page component for Build 43 (Svelte 5 Runes + Markdown Engine). -->
+<!-- Connects to: src/routes/+page.server.ts, src/lib/server/notesStore.ts, src/lib/services/markdownService.ts -->
 <!-- Created: 2026-07-25 -->
 
 <script lang="ts">
   import type { PageData } from './$types';
   import type { Note } from '$lib/server/notesStore';
+  import { renderMarkdown } from '$lib/services/markdownService';
 
   let { data }: { data: PageData } = $props();
 
   let isModalOpen = $state(false);
   let editingNote: Note | null = $state(null);
+  let activeTab: 'edit' | 'preview' = $state('edit');
 
   let formTitle = $state('');
   let formContent = $state('');
@@ -23,6 +25,7 @@
     formContent = '';
     formTags = '';
     formColor = '#06b6d4';
+    activeTab = 'edit';
     isModalOpen = true;
   }
 
@@ -32,12 +35,17 @@
     formContent = note.content;
     formTags = note.tags.join(', ');
     formColor = note.color;
+    activeTab = 'edit';
     isModalOpen = true;
   }
 
   function closeModal() {
     isModalOpen = false;
     editingNote = null;
+  }
+
+  function insertFormat(prefix: string, suffix: string = '') {
+    formContent = `${formContent}${prefix}text${suffix}`;
   }
 </script>
 
@@ -52,7 +60,7 @@
       <span class="logo-icon">🗂️</span>
       <div>
         <h1 class="app-title">SvelteKit Notes Vault</h1>
-        <p class="subtitle">Full-stack server-rendered notes app with tag filtering & form actions</p>
+        <p class="subtitle">Full-stack server-rendered notes app with Markdown support & tag filtering</p>
       </div>
     </div>
 
@@ -112,7 +120,10 @@
           {/if}
         </div>
 
-        <p class="note-content">{note.content}</p>
+        <!-- Formatted Markdown Content -->
+        <div class="note-content md-rendered">
+          {@html renderMarkdown(note.content)}
+        </div>
 
         <!-- Tag Pills -->
         <div class="note-tags">
@@ -158,13 +169,33 @@
   </section>
 </main>
 
-<!-- Create / Edit Modal -->
+<!-- Create / Edit Modal with Markdown Live Preview Tabs -->
 {#if isModalOpen}
   <div class="modal-backdrop fade-in">
     <div class="modal-card card">
       <div class="modal-header">
         <h2>{editingNote ? '✏️ Edit Note' : '➕ Create New Note'}</h2>
         <button type="button" onclick={closeModal} class="close-btn">❌</button>
+      </div>
+
+      <!-- Mode Tab Selector -->
+      <div class="tab-selector">
+        <button 
+          type="button" 
+          onclick={() => activeTab = 'edit'} 
+          class="tab-btn" 
+          class:active={activeTab === 'edit'}
+        >
+          ✍️ Raw Editor
+        </button>
+        <button 
+          type="button" 
+          onclick={() => activeTab = 'preview'} 
+          class="tab-btn" 
+          class:active={activeTab === 'preview'}
+        >
+          👁️ Live Markdown Preview
+        </button>
       </div>
 
       <form method="POST" action={editingNote ? '?/update' : '?/create'} onsubmit={closeModal} class="modal-form">
@@ -185,18 +216,47 @@
           />
         </div>
 
-        <div class="form-group">
-          <label for="note-content-input">Content</label>
-          <textarea 
-            id="note-content-input" 
-            name="content" 
-            bind:value={formContent} 
-            placeholder="Write your note thoughts..." 
-            rows="5" 
-            required 
-            class="form-textarea"
-          ></textarea>
-        </div>
+        {#if activeTab === 'edit'}
+          <div class="form-group">
+            <div class="editor-label-bar">
+              <label for="note-content-input">Content (Markdown Supported)</label>
+
+              <!-- Markdown Format Toolbar Buttons -->
+              <div class="md-toolbar">
+                <button type="button" onclick={() => insertFormat('**', '**')} class="md-tool-btn" title="Bold"><strong>B</strong></button>
+                <button type="button" onclick={() => insertFormat('*', '*')} class="md-tool-btn" title="Italic"><em>I</em></button>
+                <button type="button" onclick={() => insertFormat('### ')} class="md-tool-btn" title="Heading 3">H3</button>
+                <button type="button" onclick={() => insertFormat('`', '`')} class="md-tool-btn" title="Inline Code"><code>code</code></button>
+                <button type="button" onclick={() => insertFormat('```ts\n', '\n```')} class="md-tool-btn" title="Code Block">```</button>
+                <button type="button" onclick={() => insertFormat('> ')} class="md-tool-btn" title="Blockquote">”</button>
+                <button type="button" onclick={() => insertFormat('- ')} class="md-tool-btn" title="Bullet List">• List</button>
+              </div>
+            </div>
+
+            <textarea 
+              id="note-content-input" 
+              name="content" 
+              bind:value={formContent} 
+              placeholder="Write your note in Markdown..." 
+              rows="6" 
+              required 
+              class="form-textarea"
+            ></textarea>
+          </div>
+        {:else}
+          <div class="form-group">
+            <span class="preview-label">Live Preview Render:</span>
+            <div class="live-preview-box card md-rendered">
+              {#if formContent.trim()}
+                {@html renderMarkdown(formContent)}
+              {:else}
+                <span class="muted-text">Type content in Raw Editor tab to preview markdown formatting...</span>
+              {/if}
+            </div>
+            <!-- Hidden Input to preserve content when submitting from Preview tab -->
+            <input type="hidden" name="content" value={formContent} />
+          </div>
+        {/if}
 
         <div class="form-group">
           <label for="note-tags-input">Tags (comma separated)</label>
@@ -213,11 +273,11 @@
         <div class="form-group">
           <label for="note-color-input">Accent Color</label>
           <div class="color-options">
-            <button type="button" onclick={() => formColor = '#06b6d4'} class="color-pill" class:active={formColor === '#06b6d4'} style="background: #06b6d4;"></button>
-            <button type="button" onclick={() => formColor = '#10b981'} class="color-pill" class:active={formColor === '#10b981'} style="background: #10b981;"></button>
-            <button type="button" onclick={() => formColor = '#a855f7'} class="color-pill" class:active={formColor === '#a855f7'} style="background: #a855f7;"></button>
-            <button type="button" onclick={() => formColor = '#f59e0b'} class="color-pill" class:active={formColor === '#f59e0b'} style="background: #f59e0b;"></button>
-            <button type="button" onclick={() => formColor = '#ec4899'} class="color-pill" class:active={formColor === '#ec4899'} style="background: #ec4899;"></button>
+            <button type="button" aria-label="Cyan Color Accent" onclick={() => formColor = '#06b6d4'} class="color-pill" class:active={formColor === '#06b6d4'} style="background: #06b6d4;"></button>
+            <button type="button" aria-label="Emerald Color Accent" onclick={() => formColor = '#10b981'} class="color-pill" class:active={formColor === '#10b981'} style="background: #10b981;"></button>
+            <button type="button" aria-label="Purple Color Accent" onclick={() => formColor = '#a855f7'} class="color-pill" class:active={formColor === '#a855f7'} style="background: #a855f7;"></button>
+            <button type="button" aria-label="Amber Color Accent" onclick={() => formColor = '#f59e0b'} class="color-pill" class:active={formColor === '#f59e0b'} style="background: #f59e0b;"></button>
+            <button type="button" aria-label="Pink Color Accent" onclick={() => formColor = '#ec4899'} class="color-pill" class:active={formColor === '#ec4899'} style="background: #ec4899;"></button>
             <input type="hidden" name="color" value={formColor} />
           </div>
         </div>
@@ -350,7 +410,6 @@
     font-size: 14px;
     color: var(--text-secondary);
     line-height: 1.6;
-    white-space: pre-wrap;
     flex: 1;
   }
 
@@ -431,11 +490,11 @@
 
   .modal-card {
     width: 100%;
-    max-width: 500px;
+    max-width: 550px;
     padding: 24px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
   }
 
   .modal-header {
@@ -446,6 +505,29 @@
 
   .modal-header h2 { font-size: 18px; font-weight: 800; }
   .close-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-muted); }
+
+  .tab-selector {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 12px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+
+  .tab-btn.active {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--accent-cyan);
+  }
 
   .modal-form {
     display: flex;
@@ -459,7 +541,30 @@
     gap: 6px;
   }
 
-  .form-group label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+  .editor-label-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .md-toolbar {
+    display: flex;
+    gap: 4px;
+  }
+
+  .md-tool-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .md-tool-btn:hover { background: rgba(255, 255, 255, 0.15); }
+
+  .form-group label, .preview-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
 
   .form-input, .form-textarea {
     background: rgba(0, 0, 0, 0.3);
@@ -470,6 +575,16 @@
     padding: 8px 12px;
     font-family: var(--font-sans);
   }
+
+  .live-preview-box {
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.4);
+    min-height: 140px;
+    max-height: 250px;
+    overflow-y: auto;
+  }
+
+  .muted-text { font-size: 13px; color: var(--text-muted); font-style: italic; }
 
   .color-options {
     display: flex;

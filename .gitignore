@@ -11,3 +11,5 @@ dist/
 *.log
 venv/
 __pycache__/
+
+.vercel
