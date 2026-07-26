@@ -5,6 +5,14 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-07-26
+
+### Added
+- Integrated **AES-256 Client-Side Note Encryption & Password Protection** in `src/lib/services/encryptionService.ts` and `src/routes/+page.svelte`.
+- Added Master Password encryption & decryption modal dialogs.
+- Added `🔒 ENCRYPTED` lock badges and click-to-unlock encrypted note placeholders.
+- Added unit test suite in `src/lib/services/encryptionService.spec.ts`.
+
 ## [0.11.0] - 2026-07-26
 
 ### Added

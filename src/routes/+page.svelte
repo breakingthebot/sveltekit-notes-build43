@@ -42,6 +42,11 @@
     SORT_OPTIONS,
     type SortCriteria
   } from '$lib/services/sortingService';
+  import {
+    encryptNoteText,
+    decryptNoteText,
+    isEncrypted
+  } from '$lib/services/encryptionService';
 
   let { data }: { data: PageData } = $props();
 
@@ -49,8 +54,14 @@
   let isPaletteOpen = $state(false);
   let isRevisionModalOpen = $state(false);
   let isStickyDrawerOpen = $state(false);
+  let isEncryptModalOpen = $state(false);
+
   let currentThemeKey = $state('default');
   let currentSort = $state<SortCriteria>('pinned');
+  let targetEncryptNote: Note | null = $state(null);
+  let encryptPasswordInput = $state('');
+  let encryptModalMode = $state<'encrypt' | 'decrypt'>('encrypt');
+  let encryptionErrorMessage = $state('');
 
   let availableThemes = $derived(getAvailableThemes());
   let sortOptionsList = $derived(getSortOptions());
@@ -211,8 +222,49 @@
   function closeModal() {
     isModalOpen = false;
     isRevisionModalOpen = false;
+    isEncryptModalOpen = false;
     editingNote = null;
     historyNote = null;
+    targetEncryptNote = null;
+    encryptPasswordInput = '';
+    encryptionErrorMessage = '';
+  }
+
+  function openEncryptModal(note: Note) {
+    targetEncryptNote = note;
+    encryptPasswordInput = '';
+    encryptionErrorMessage = '';
+    encryptModalMode = isEncrypted(note.content) ? 'decrypt' : 'encrypt';
+    isEncryptModalOpen = true;
+  }
+
+  async function handleEncryptionSubmit(e: SubmitEvent) {
+    e.preventDefault();
+    if (!targetEncryptNote || !encryptPasswordInput.trim()) return;
+
+    try {
+      let newContent = '';
+      if (encryptModalMode === 'encrypt') {
+        newContent = encryptNoteText(targetEncryptNote.content, encryptPasswordInput.trim());
+      } else {
+        newContent = decryptNoteText(targetEncryptNote.content, encryptPasswordInput.trim());
+      }
+
+      // Submit update form to server action
+      const body = new FormData();
+      body.append('id', targetEncryptNote.id);
+      body.append('title', targetEncryptNote.title);
+      body.append('content', newContent);
+      body.append('tags', targetEncryptNote.tags.join(', '));
+      body.append('folder', targetEncryptNote.folder);
+      body.append('color', targetEncryptNote.color);
+
+      await fetch('?/update', { method: 'POST', body });
+      closeModal();
+      window.location.reload();
+    } catch (err: any) {
+      encryptionErrorMessage = err?.message || 'Encryption/Decryption error occurred.';
+    }
   }
 
   function insertFormat(prefix: string, suffix: string = '') {
@@ -485,6 +537,7 @@
   <section class="notes-grid">
     {#each displayNotes as note (note.id)}
       {@const analytics = analyzeNoteText(note.content)}
+      {@const noteIsEncrypted = isEncrypted(note.content)}
       <article class="note-card card fade-in" style="border-top: 4px solid {note.color};">
         <div class="note-head">
           <div class="title-box">
@@ -493,15 +546,26 @@
           </div>
           
           <div class="head-badges">
+            {#if noteIsEncrypted}
+              <span class="encrypted-badge">🔒 ENCRYPTED</span>
+            {/if}
             {#if note.isPinned}
               <span class="pinned-badge">📌 PINNED</span>
             {/if}
           </div>
         </div>
 
-        <!-- Formatted Markdown Content -->
+        <!-- Formatted Markdown Content or Encrypted Placeholder -->
         <div class="note-content md-rendered">
-          {@html renderMarkdown(note.content)}
+          {#if noteIsEncrypted}
+            <button type="button" class="encrypted-placeholder" onclick={() => openEncryptModal(note)}>
+              <span class="lock-big-icon">🔒</span>
+              <strong>Encrypted Note Vault</strong>
+              <p>This note content is AES-256 encrypted. Click to unlock with Master Password.</p>
+            </button>
+          {:else}
+            {@html renderMarkdown(note.content)}
+          {/if}
         </div>
 
         <!-- Live Analytics Badge Row -->
@@ -542,6 +606,11 @@
                 </button>
               </form>
             {:else}
+              <!-- Lock / Unlock Encryption Button -->
+              <button type="button" onclick={() => openEncryptModal(note)} class="icon-btn lock-btn" title={noteIsEncrypted ? 'Unlock / Decrypt Note' : 'Lock / Encrypt Note'}>
+                {noteIsEncrypted ? '🔓 Unlock' : '🔒 Lock'}
+              </button>
+
               <!-- Favorite Star Form Action -->
               <form method="POST" action="?/toggleFavorite">
                 <input type="hidden" name="id" value={note.id} />
@@ -821,6 +890,51 @@
         <div class="modal-actions">
           <button type="button" onclick={closeModal} class="btn btn-secondary">Cancel</button>
           <button type="submit" class="btn btn-primary">{editingNote ? 'Save Changes' : 'Create Note'}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{/if}
+
+<!-- AES-256 Client-Side Encryption & Decryption Master Password Modal -->
+{#if isEncryptModalOpen && targetEncryptNote}
+  <div class="modal-backdrop fade-in">
+    <div class="modal-card card">
+      <div class="modal-header">
+        <h2>{encryptModalMode === 'encrypt' ? '🔒 AES-256 Lock Note' : '🔓 Unlock Encrypted Note'}</h2>
+        <button type="button" onclick={closeModal} class="close-btn">❌</button>
+      </div>
+
+      <form onsubmit={handleEncryptionSubmit} class="modal-form">
+        <p class="subtitle">
+          {encryptModalMode === 'encrypt'
+            ? `Encrypting content for note: "${targetEncryptNote.title}". Enter a Master Password to lock.`
+            : `Decrypting content for note: "${targetEncryptNote.title}". Enter Master Password to unlock.`}
+        </p>
+
+        {#if encryptionErrorMessage}
+          <div class="alert-error-box card">
+            ⚠️ <strong>Error:</strong> {encryptionErrorMessage}
+          </div>
+        {/if}
+
+        <div class="form-group">
+          <label for="encrypt-pass-input">Master Password</label>
+          <input 
+            id="encrypt-pass-input" 
+            type="password" 
+            bind:value={encryptPasswordInput} 
+            placeholder="Enter Master Password..." 
+            required 
+            class="form-input"
+          />
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" onclick={closeModal} class="btn btn-secondary">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            {encryptModalMode === 'encrypt' ? '🔒 Lock Note' : '🔓 Unlock Note'}
+          </button>
         </div>
       </form>
     </div>
@@ -1609,5 +1723,62 @@
     background: rgba(168, 85, 247, 0.2);
     color: var(--accent-purple);
     border-color: var(--accent-purple);
+  }
+
+  /* AES-256 Encryption UI Styles */
+  .encrypted-badge {
+    font-size: 10px;
+    font-weight: 800;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .encrypted-placeholder {
+    padding: 20px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px dashed rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-sm);
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+  }
+
+  .encrypted-placeholder:hover {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.6);
+  }
+
+  .lock-big-icon {
+    font-size: 24px;
+  }
+
+  .encrypted-placeholder strong {
+    font-size: 13px;
+    color: #fca5a5;
+  }
+
+  .encrypted-placeholder p {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .alert-error-box {
+    padding: 10px 14px;
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+    font-size: 12px;
+  }
+
+  .icon-btn.lock-btn:hover {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.4);
   }
 </style>
