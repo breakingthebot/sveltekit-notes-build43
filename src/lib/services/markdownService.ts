@@ -31,8 +31,8 @@ export function renderMarkdown(markdown: string): string {
     });
 
     const thead = `<thead><tr>${headers.map((h: string) => `<th>${h}</th>`).join('')}</tr></thead>`;
-    const tbody = `tbody>${rows.join('')}</tbody>`;
-    return `<table class="md-table">${thead}<${tbody}</table>`;
+    const tbody = `<tbody>${rows.join('')}</tbody>`;
+    return `<table class="md-table">${thead}${tbody}</table>`;
   });
 
   // Task list items (- [x] done and - [ ] todo)

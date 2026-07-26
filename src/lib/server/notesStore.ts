@@ -98,7 +98,9 @@ export function getAllNotes(
   return list.sort((a, b) => {
     if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
     if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    const timeA = new Date(a.updatedAt || 0).getTime() || 0;
+    const timeB = new Date(b.updatedAt || 0).getTime() || 0;
+    return timeB - timeA;
   });
 }
 
