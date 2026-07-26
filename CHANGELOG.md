@@ -5,6 +5,13 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-07-26
+
+### Added
+- Integrated **Progressive Web App (PWA) & Installable App Package** in `static/manifest.json`, `static/sw.js`, `src/app.html`, and `src/routes/+page.svelte`.
+- Added Web App Manifest definition and Service Worker offline caching.
+- Added dynamic `beforeinstallprompt` installation prompt and `📱 Install App` header action button.
+
 ## [0.17.0] - 2026-07-26
 
 ### Added

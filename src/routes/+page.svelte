@@ -78,6 +78,27 @@
   let isImportModalOpen = $state(false);
   let isShortcutsModalOpen = $state(false);
   let isVoiceModalOpen = $state(false);
+  let deferredInstallPrompt = $state<any>(null);
+
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      const handler = (e: Event) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+      };
+      window.addEventListener('beforeinstallprompt', handler);
+      return () => window.removeEventListener('beforeinstallprompt', handler);
+    }
+  });
+
+  function triggerPwaInstall() {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.then(() => {
+        deferredInstallPrompt = null;
+      });
+    }
+  }
 
   let isRecording = $state(false);
   let recordingTimer = $state(0);
@@ -533,6 +554,11 @@
     </div>
 
     <div class="header-actions">
+      {#if deferredInstallPrompt}
+        <button type="button" onclick={triggerPwaInstall} class="btn btn-primary pwa-install-btn" title="Install App on Desktop or Mobile">
+          📱 Install App
+        </button>
+      {/if}
       <button type="button" onclick={() => isStickyDrawerOpen = !isStickyDrawerOpen} class="btn btn-secondary sticky-btn" class:active={isStickyDrawerOpen} title="Toggle Quick Scratchpad Sticky Panel">
         📌 Sticky Pad ({stickies.length})
       </button>
