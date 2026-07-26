@@ -47,6 +47,10 @@
     decryptNoteText,
     isEncrypted
   } from '$lib/services/encryptionService';
+  import {
+    generateNoteSummary,
+    type AISummaryResult
+  } from '$lib/services/aiSummarizerService';
 
   let { data }: { data: PageData } = $props();
 
@@ -55,6 +59,7 @@
   let isRevisionModalOpen = $state(false);
   let isStickyDrawerOpen = $state(false);
   let isEncryptModalOpen = $state(false);
+  let isAISummaryModalOpen = $state(false);
 
   let currentThemeKey = $state('default');
   let currentSort = $state<SortCriteria>('pinned');
@@ -62,6 +67,9 @@
   let encryptPasswordInput = $state('');
   let encryptModalMode = $state<'encrypt' | 'decrypt'>('encrypt');
   let encryptionErrorMessage = $state('');
+
+  let aiTargetNote: Note | null = $state(null);
+  let aiSummaryResult: AISummaryResult | null = $state(null);
 
   let availableThemes = $derived(getAvailableThemes());
   let sortOptionsList = $derived(getSortOptions());
@@ -223,11 +231,40 @@
     isModalOpen = false;
     isRevisionModalOpen = false;
     isEncryptModalOpen = false;
+    isAISummaryModalOpen = false;
     editingNote = null;
     historyNote = null;
     targetEncryptNote = null;
+    aiTargetNote = null;
+    aiSummaryResult = null;
     encryptPasswordInput = '';
     encryptionErrorMessage = '';
+  }
+
+  function openAISummaryModal(note: Note) {
+    aiTargetNote = note;
+    aiSummaryResult = generateNoteSummary(note.content);
+    isAISummaryModalOpen = true;
+  }
+
+  async function addSuggestedTagToNote(tag: string) {
+    if (!aiTargetNote) return;
+    const existingTags = aiTargetNote.tags || [];
+    if (existingTags.includes(tag)) return;
+
+    const updatedTags = [...existingTags, tag];
+
+    const body = new FormData();
+    body.append('id', aiTargetNote.id);
+    body.append('title', aiTargetNote.title);
+    body.append('content', aiTargetNote.content);
+    body.append('tags', updatedTags.join(', '));
+    body.append('folder', aiTargetNote.folder);
+    body.append('color', aiTargetNote.color);
+
+    await fetch('?/update', { method: 'POST', body });
+    closeModal();
+    window.location.reload();
   }
 
   function openEncryptModal(note: Note) {
@@ -606,6 +643,11 @@
                 </button>
               </form>
             {:else}
+              <!-- AI Summarize Button -->
+              <button type="button" onclick={() => openAISummaryModal(note)} class="icon-btn ai-btn" title="Generate AI Summary & Smart Tag Suggestions">
+                🤖 AI
+              </button>
+
               <!-- Lock / Unlock Encryption Button -->
               <button type="button" onclick={() => openEncryptModal(note)} class="icon-btn lock-btn" title={noteIsEncrypted ? 'Unlock / Decrypt Note' : 'Lock / Encrypt Note'}>
                 {noteIsEncrypted ? '🔓 Unlock' : '🔒 Lock'}
@@ -939,6 +981,61 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+{/if}
+
+<!-- AI Note Summarization & Smart Tag Recommendation Modal -->
+{#if isAISummaryModalOpen && aiTargetNote && aiSummaryResult}
+  <div class="modal-backdrop fade-in">
+    <div class="modal-card card ai-summary-card">
+      <div class="modal-header">
+        <h2>🤖 AI Executive Note Summary</h2>
+        <button type="button" onclick={closeModal} class="close-btn">❌</button>
+      </div>
+
+      <div class="ai-summary-body">
+        <div class="ai-meta-row">
+          <span class="ai-target-title">📝 {aiTargetNote.title}</span>
+          <span class="complexity-badge complexity-{aiSummaryResult.readingComplexity.toLowerCase()}">
+            📊 Complexity: {aiSummaryResult.readingComplexity}
+          </span>
+        </div>
+
+        <div class="ai-section card">
+          <h3>📌 Executive Summary</h3>
+          <p>{aiSummaryResult.summary}</p>
+        </div>
+
+        <div class="ai-section card">
+          <h3>⚡ Key Highlights & Bullet Points</h3>
+          <ul class="ai-bullets">
+            {#each aiSummaryResult.keyBulletPoints as bullet}
+              <li>{bullet}</li>
+            {/each}
+          </ul>
+        </div>
+
+        <div class="ai-section card">
+          <h3>🏷️ Smart Recommended Tags (Click to Add)</h3>
+          <div class="ai-suggested-tags">
+            {#each aiSummaryResult.suggestedTags as tag}
+              <button 
+                type="button" 
+                onclick={() => addSuggestedTagToNote(tag)}
+                class="ai-tag-btn"
+                title="Click to add #{tag} tag to this note"
+              >
+                + #{tag}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" onclick={closeModal} class="btn btn-secondary">Close</button>
+        </div>
+      </div>
     </div>
   </div>
 {/if}
@@ -1782,5 +1879,105 @@
   .icon-btn.lock-btn:hover {
     color: #ef4444;
     border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  /* AI Summarizer UI Styles */
+  .icon-btn.ai-btn {
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--accent-purple);
+    border-color: rgba(168, 85, 247, 0.3);
+    font-weight: 700;
+  }
+
+  .icon-btn.ai-btn:hover {
+    background: rgba(168, 85, 247, 0.3);
+  }
+
+  .ai-summary-card {
+    max-width: 600px;
+  }
+
+  .ai-summary-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ai-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .ai-target-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .complexity-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+  }
+
+  .complexity-simple { color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); }
+  .complexity-moderate { color: var(--accent-amber); background: rgba(245, 158, 11, 0.1); }
+  .complexity-advanced { color: var(--accent-purple); background: rgba(168, 85, 247, 0.1); }
+
+  .ai-section {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .ai-section h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+  }
+
+  .ai-section p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .ai-bullets {
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ai-suggested-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .ai-tag-btn {
+    background: rgba(6, 182, 212, 0.15);
+    border: 1px solid var(--accent-cyan);
+    color: var(--accent-cyan);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .ai-tag-btn:hover {
+    background: var(--accent-cyan);
+    color: #000;
   }
 </style>

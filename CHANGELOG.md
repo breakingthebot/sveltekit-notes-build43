@@ -5,6 +5,14 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-07-26
+
+### Added
+- Integrated **AI Note Summarization & Smart Tag Recommendation Pipeline** in `src/lib/services/aiSummarizerService.ts` and `src/routes/+page.svelte`.
+- Added executive summary generation, key bullet highlight extraction, and reading complexity level calculation.
+- Added 1-click suggested tag assignment pills inside the AI summary modal.
+- Added unit test suite in `src/lib/services/aiSummarizerService.spec.ts`.
+
 ## [0.13.0] - 2026-07-26
 
 ### Added
