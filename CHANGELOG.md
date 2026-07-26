@@ -5,6 +5,14 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-07-26
+
+### Added
+- Integrated **Pinned Note Quick Access Sidebar & Sticky Notes Scratchpad View** in `src/lib/services/stickyNotesService.ts` and `src/routes/+page.svelte`.
+- Added sticky note data model supporting custom color accents (Yellow, Green, Pink, Cyan, Purple), inline real-time editing, 1-click pin toggling (`📌` / `📍`), and instant deletion.
+- Added `📌 Sticky Pad ({count})` header action button to toggle the collapsible quick scratchpad drawer.
+- Added unit tests in `src/lib/services/stickyNotesService.spec.ts`.
+
 ## [0.8.0] - 2026-07-25
 
 ### Added

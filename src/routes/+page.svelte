@@ -22,12 +22,25 @@
     computeTextDiff, 
     type NoteRevision 
   } from '$lib/services/revisionService';
+  import {
+    getStickyNotes,
+    createStickyNote,
+    deleteStickyNote,
+    toggleStickyPin,
+    updateStickyNote,
+    type StickyNote
+  } from '$lib/services/stickyNotesService';
 
   let { data }: { data: PageData } = $props();
 
   let isModalOpen = $state(false);
   let isPaletteOpen = $state(false);
   let isRevisionModalOpen = $state(false);
+  let isStickyDrawerOpen = $state(false);
+
+  let stickies: StickyNote[] = $state(getStickyNotes());
+  let newStickyText = $state('');
+  let newStickyColor = $state('#fef08a');
 
   let paletteQuery = $state('');
   let editingNote: Note | null = $state(null);
@@ -177,12 +190,32 @@
     const filename = `notes-vault-dump-${Date.now()}.md`;
     triggerDownload(dump, filename, 'text/markdown');
   }
+  function addSticky() {
+    if (!newStickyText.trim()) return;
+    createStickyNote(newStickyText, newStickyColor);
+    stickies = getStickyNotes();
+    newStickyText = '';
+  }
+
+  function removeSticky(id: string) {
+    deleteStickyNote(id);
+    stickies = getStickyNotes();
+  }
+
+  function pinSticky(id: string) {
+    toggleStickyPin(id);
+    stickies = getStickyNotes();
+  }
+
+  function handleStickyInput(id: string, text: string) {
+    updateStickyNote(id, text);
+  }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <svelte:head>
-  <title>SvelteKit Notes Vault — Full Stack Notes & Revision History</title>
+  <title>SvelteKit Notes Vault — Full Stack Notes & Sticky Scratchpad</title>
 </svelte:head>
 
 <main class="container">
@@ -192,11 +225,14 @@
       <span class="logo-icon">🗂️</span>
       <div>
         <h1 class="app-title">SvelteKit Notes Vault</h1>
-        <p class="subtitle">Full-stack server-rendered notes app with Revision History & Line Diff Viewer</p>
+        <p class="subtitle">Full-stack server-rendered notes app with Revision History & Sticky Scratchpad</p>
       </div>
     </div>
 
     <div class="header-actions">
+      <button type="button" onclick={() => isStickyDrawerOpen = !isStickyDrawerOpen} class="btn btn-secondary sticky-btn" class:active={isStickyDrawerOpen} title="Toggle Quick Scratchpad Sticky Panel">
+        📌 Sticky Pad ({stickies.length})
+      </button>
       <button type="button" onclick={() => isPaletteOpen = true} class="btn btn-secondary palette-btn" title="Open Quick Action Command Palette">
         ⚡ ⌘K Quick Actions
       </button>
@@ -208,6 +244,59 @@
       </button>
     </div>
   </header>
+
+  <!-- Sticky Notes & Quick Scratchpad Collapsible Drawer Panel -->
+  {#if isStickyDrawerOpen}
+    <section class="sticky-drawer card fade-in">
+      <div class="sticky-drawer-header">
+        <h2>📌 Quick Scratchpad & Sticky Notes Panel</h2>
+        <div class="sticky-controls">
+          <div class="color-picker-mini">
+            <button type="button" aria-label="Yellow Sticky Color" onclick={() => newStickyColor = '#fef08a'} class="color-dot" class:active={newStickyColor === '#fef08a'} style="background: #fef08a;"></button>
+            <button type="button" aria-label="Green Sticky Color" onclick={() => newStickyColor = '#bbf7d0'} class="color-dot" class:active={newStickyColor === '#bbf7d0'} style="background: #bbf7d0;"></button>
+            <button type="button" aria-label="Pink Sticky Color" onclick={() => newStickyColor = '#fbcfe8'} class="color-dot" class:active={newStickyColor === '#fbcfe8'} style="background: #fbcfe8;"></button>
+            <button type="button" aria-label="Cyan Sticky Color" onclick={() => newStickyColor = '#cff4fc'} class="color-dot" class:active={newStickyColor === '#cff4fc'} style="background: #cff4fc;"></button>
+            <button type="button" aria-label="Purple Sticky Color" onclick={() => newStickyColor = '#e9d5ff'} class="color-dot" class:active={newStickyColor === '#e9d5ff'} style="background: #e9d5ff;"></button>
+          </div>
+          <button type="button" onclick={() => isStickyDrawerOpen = false} class="close-btn">❌</button>
+        </div>
+      </div>
+
+      <div class="sticky-input-row">
+        <input 
+          type="text" 
+          bind:value={newStickyText} 
+          placeholder="Type a quick thought or reminder..." 
+          onkeydown={(e) => e.key === 'Enter' && addSticky()}
+          class="sticky-text-input"
+        />
+        <button type="button" onclick={addSticky} class="btn btn-primary">Add Sticky</button>
+      </div>
+
+      <div class="sticky-grid">
+        {#each stickies as sticky (sticky.id)}
+          <div class="sticky-card" style="background: {sticky.color};">
+            <div class="sticky-card-head">
+              <button type="button" onclick={() => pinSticky(sticky.id)} class="sticky-pin-btn" title="Toggle Pinned Sticky">
+                {sticky.isPinned ? '📌' : '📍'}
+              </button>
+              <button type="button" onclick={() => removeSticky(sticky.id)} class="sticky-close-btn" title="Delete Sticky">
+                ✕
+              </button>
+            </div>
+            <textarea 
+              value={sticky.content} 
+              oninput={(e) => handleStickyInput(sticky.id, (e.target as HTMLTextAreaElement).value)}
+              class="sticky-textarea" 
+              rows="3"
+            ></textarea>
+          </div>
+        {:else}
+          <div class="muted-text">No sticky notes added yet. Type a thought above!</div>
+        {/each}
+      </div>
+    </section>
+  {/if}
 
   <!-- Category Folders & Favorites & Trash Tab Bar -->
   <section class="folder-bar card">
@@ -1250,5 +1339,118 @@
     justify-content: flex-end;
     gap: 10px;
     margin-top: 10px;
+  }
+
+  /* Sticky Pad Drawer Styles */
+  .sticky-btn.active {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--accent-amber);
+    border-color: var(--accent-amber);
+  }
+
+  .sticky-drawer {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: rgba(15, 23, 42, 0.95);
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+
+  .sticky-drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .sticky-drawer-header h2 {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+
+  .sticky-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .color-picker-mini {
+    display: flex;
+    gap: 6px;
+  }
+
+  .color-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+  }
+
+  .color-dot.active {
+    border-color: #000;
+    transform: scale(1.2);
+  }
+
+  .sticky-input-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .sticky-text-input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: #fff;
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+
+  .sticky-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    padding-top: 4px;
+  }
+
+  .sticky-card {
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    color: #1e293b;
+  }
+
+  .sticky-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .sticky-pin-btn, .sticky-close-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+    color: #334155;
+  }
+
+  .sticky-close-btn:hover { color: #ef4444; }
+
+  .sticky-textarea {
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.4;
   }
 </style>
