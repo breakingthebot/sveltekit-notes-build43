@@ -22,10 +22,27 @@ describe('markdownService', () => {
     expect(html).toContain('<pre class="md-code-block"><code>const x = 42;</code></pre>');
   });
 
+  it('should render task list checkboxes correctly', () => {
+    const md = '- [ ] Uncompleted task\n- [x] Completed task';
+    const html = renderMarkdown(md);
+
+    expect(html).toContain('<li class="md-task-item md-task-todo"><input type="checkbox" disabled /> <span>Uncompleted task</span></li>');
+    expect(html).toContain('<li class="md-task-item md-task-done"><input type="checkbox" checked disabled /> <del>Completed task</del></li>');
+  });
+
+  it('should render markdown tables correctly', () => {
+    const md = '| Task | Status |\n| --- | --- |\n| Build 43 | In Progress |';
+    const html = renderMarkdown(md);
+
+    expect(html).toContain('<table class="md-table">');
+    expect(html).toContain('<th>Task</th>');
+    expect(html).toContain('<td>Build 43</td>');
+  });
+
   it('should strip markdown formatting to plain text', () => {
-    const md = '### Title\n**Bold** and `code`';
+    const md = '### Title\n**Bold** and `code`\n- [x] Done';
     const plain = stripMarkdown(md);
 
-    expect(plain).toBe('Title\nBold and code');
+    expect(plain).toBe('Title\nBold and code\nDone');
   });
 });

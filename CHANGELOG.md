@@ -5,6 +5,15 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-07-26
+
+### Added
+- Integrated **Rich Table & Checklist Todo Parser Extension** in `src/lib/services/markdownService.ts`, `src/app.css`, and `src/routes/+page.svelte`.
+- Added task checklist parsing (`- [ ]` todo items & `- [x]` completed items with checkbox UI).
+- Added Markdown Table parsing (`| Header |` -> glassmorphic HTML `<table>` rendering).
+- Added `☑️ Task` and `📊 Table` shortcut insertion buttons to modal editor toolbar.
+- Added unit tests in `src/lib/services/markdownService.spec.ts`.
+
 ## [0.12.0] - 2026-07-26
 
 ### Added

@@ -825,6 +825,8 @@
                 <button type="button" onclick={() => insertFormat('```ts\n', '\n```')} class="md-tool-btn" title="Code Block">```</button>
                 <button type="button" onclick={() => insertFormat('> ')} class="md-tool-btn" title="Blockquote">”</button>
                 <button type="button" onclick={() => insertFormat('- ')} class="md-tool-btn" title="Bullet List">• List</button>
+                <button type="button" onclick={() => insertFormat('- [ ] ')} class="md-tool-btn" title="Task Checklist">☑️ Task</button>
+                <button type="button" onclick={() => insertFormat('| Task | Status |\n| --- | --- |\n| ', ' | Done |')} class="md-tool-btn" title="Markdown Table">📊 Table</button>
               </div>
             </div>
 
