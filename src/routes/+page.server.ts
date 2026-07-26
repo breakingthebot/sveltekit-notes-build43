@@ -148,5 +148,31 @@ export const actions: Actions = {
       toggleFavoriteNote(id);
     }
     return { success: true };
+  },
+
+  importNotes: async ({ request }) => {
+    const data = await request.formData();
+    const rawJson = data.get('notesJson')?.toString() || '[]';
+
+    try {
+      const items = JSON.parse(rawJson);
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          const note = createNote(
+            item.title || 'Imported Note',
+            item.content || '',
+            Array.isArray(item.tags) ? item.tags.join(', ') : item.tags || 'imported',
+            item.folder || 'Ideas',
+            item.color || '#06b6d4'
+          );
+          saveRevision(note, 'Imported Note');
+        }
+      }
+    } catch (err) {
+      // Ignore invalid JSON
+    }
+
+    return { success: true };
   }
 };
+

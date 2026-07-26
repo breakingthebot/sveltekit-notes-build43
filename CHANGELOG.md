@@ -5,6 +5,15 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-07-26
+
+### Added
+- Integrated **Notebook Import Engine & Sync (Evernote, Notion, Markdown Zip)** in `src/lib/services/importService.ts`, `src/routes/+page.server.ts`, and `src/routes/+page.svelte`.
+- Added Markdown (`.md`), plain text (`.txt`), and JSON notebook backup (`.json`) file parsing.
+- Added `📤 Import Notes` header button and interactive Batch Import Modal dialog.
+- Added `importNotes` server action in `src/routes/+page.server.ts`.
+- Added unit test suite in `src/lib/services/importService.spec.ts`.
+
 ## [0.14.0] - 2026-07-26
 
 ### Added

@@ -51,6 +51,11 @@
     generateNoteSummary,
     type AISummaryResult
   } from '$lib/services/aiSummarizerService';
+  import {
+    parseMarkdownImport,
+    parseJsonVaultImport,
+    type ImportedNotePayload
+  } from '$lib/services/importService';
 
   let { data }: { data: PageData } = $props();
 
@@ -60,6 +65,10 @@
   let isStickyDrawerOpen = $state(false);
   let isEncryptModalOpen = $state(false);
   let isAISummaryModalOpen = $state(false);
+  let isImportModalOpen = $state(false);
+
+  let importRawInput = $state('');
+  let importFileName = $state('notebook-import.md');
 
   let currentThemeKey = $state('default');
   let currentSort = $state<SortCriteria>('pinned');
@@ -115,11 +124,12 @@
   // Command palette static + dynamic note actions
   let basePaletteActions: PaletteAction[] = $derived([
     { id: 'act-new', title: '➕ Create New Note', category: 'Actions', icon: '➕', shortcut: 'Ctrl+N', actionKey: 'create_note' },
+    { id: 'act-import', title: '📤 Batch Import Notes / Notebook', category: 'Actions', icon: '📤', actionKey: 'import_notes' },
     { id: 'act-json', title: '📥 Export Vault JSON Backup', category: 'Actions', icon: '📥', actionKey: 'export_json' },
     { id: 'act-md', title: '📄 Export All Notes Markdown', category: 'Actions', icon: '📄', actionKey: 'export_md' },
     { id: 'act-fav', title: '⭐ View Starred Favorites', category: 'Filters', icon: '⭐', actionKey: 'filter_fav' },
     { id: 'act-trash', title: '🗑️ Open Trash Bin Recovery', category: 'Filters', icon: '🗑️', actionKey: 'filter_trash' },
-    
+
     // Theme palette actions
     ...availableThemes.map(t => ({
       id: `thm-${t.key}`,
@@ -166,6 +176,7 @@
       isPaletteOpen = false;
       isModalOpen = false;
       isRevisionModalOpen = false;
+      isImportModalOpen = false;
     }
   }
 
@@ -175,6 +186,8 @@
 
     if (action.actionKey === 'create_note') {
       openCreateModal();
+    } else if (action.actionKey === 'import_notes') {
+      openImportModal();
     } else if (action.actionKey === 'export_json') {
       exportVaultJsonAction();
     } else if (action.actionKey === 'export_md') {
@@ -232,6 +245,7 @@
     isRevisionModalOpen = false;
     isEncryptModalOpen = false;
     isAISummaryModalOpen = false;
+    isImportModalOpen = false;
     editingNote = null;
     historyNote = null;
     targetEncryptNote = null;
@@ -239,6 +253,46 @@
     aiSummaryResult = null;
     encryptPasswordInput = '';
     encryptionErrorMessage = '';
+    importRawInput = '';
+  }
+
+  function openImportModal() {
+    importRawInput = '';
+    importFileName = 'notebook-import.md';
+    isImportModalOpen = true;
+  }
+
+  function handleFileUpload(e: Event) {
+    const input = e.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
+    importFileName = file.name;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      importRawInput = event.target?.result as string || '';
+    };
+    reader.readAsText(file);
+  }
+
+  async function executeImportNotes() {
+    if (!importRawInput.trim()) return;
+
+    let payloads: ImportedNotePayload[] = [];
+    if (importRawInput.trim().startsWith('[') || importRawInput.trim().startsWith('{')) {
+      payloads = parseJsonVaultImport(importRawInput);
+    } else {
+      payloads = [parseMarkdownImport(importRawInput, importFileName)];
+    }
+
+    if (payloads.length === 0) return;
+
+    const body = new FormData();
+    body.append('notesJson', JSON.stringify(payloads));
+
+    await fetch('?/importNotes', { method: 'POST', body });
+    closeModal();
+    window.location.reload();
   }
 
   function openAISummaryModal(note: Note) {
@@ -377,6 +431,9 @@
       </button>
       <button type="button" onclick={() => isPaletteOpen = true} class="btn btn-secondary palette-btn" title="Open Quick Action Command Palette">
         ⚡ ⌘K Quick Actions
+      </button>
+      <button type="button" onclick={openImportModal} class="btn btn-secondary" title="Batch Import Notes / Notebook">
+        📤 Import Notes
       </button>
       <button type="button" onclick={exportVaultJsonAction} class="btn btn-secondary" title="Export Vault JSON Backup">
         📥 Export JSON
@@ -1034,6 +1091,53 @@
 
         <div class="modal-actions">
           <button type="button" onclick={closeModal} class="btn btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Batch Notebook & Markdown Import Modal -->
+{#if isImportModalOpen}
+  <div class="modal-backdrop fade-in">
+    <div class="modal-card card import-card">
+      <div class="modal-header">
+        <h2>📤 Batch Import Notes & Notebook Vault</h2>
+        <button type="button" onclick={closeModal} class="close-btn">❌</button>
+      </div>
+
+      <div class="import-body">
+        <p class="subtitle">
+          Import Markdown files (`.md`), Notion/Evernote text exports, or JSON Vault Backups (`.json`).
+        </p>
+
+        <div class="form-group">
+          <label for="import-file-input">📁 Upload File (.md, .txt, .json)</label>
+          <input 
+            id="import-file-input"
+            type="file" 
+            accept=".md,.txt,.json" 
+            onchange={handleFileUpload} 
+            class="form-input file-input"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="import-raw-input">📝 Or Paste Raw Markdown / JSON Content</label>
+          <textarea 
+            id="import-raw-input"
+            bind:value={importRawInput} 
+            placeholder="Paste your Markdown note with H1 or YAML frontmatter, or JSON vault array..."
+            rows="8"
+            class="form-textarea"
+          ></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" onclick={closeModal} class="btn btn-secondary">Cancel</button>
+          <button type="button" onclick={executeImportNotes} class="btn btn-primary" disabled={!importRawInput.trim()}>
+            📤 Import to Notebook
+          </button>
         </div>
       </div>
     </div>
@@ -1979,5 +2083,22 @@
   .ai-tag-btn:hover {
     background: var(--accent-cyan);
     color: #000;
+  }
+
+  /* Notebook Import UI Styles */
+  .import-card {
+    max-width: 600px;
+  }
+
+  .import-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .file-input {
+    padding: 6px;
+    cursor: pointer;
+    font-size: 13px;
   }
 </style>
