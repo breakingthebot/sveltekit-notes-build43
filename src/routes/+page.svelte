@@ -56,6 +56,10 @@
     parseJsonVaultImport,
     type ImportedNotePayload
   } from '$lib/services/importService';
+  import {
+    getShortcutsByCategory,
+    isShortcutTriggered
+  } from '$lib/services/shortcutService';
 
   let { data }: { data: PageData } = $props();
 
@@ -66,6 +70,9 @@
   let isEncryptModalOpen = $state(false);
   let isAISummaryModalOpen = $state(false);
   let isImportModalOpen = $state(false);
+  let isShortcutsModalOpen = $state(false);
+
+  let groupedShortcuts = $derived(getShortcutsByCategory());
 
   let importRawInput = $state('');
   let importFileName = $state('notebook-import.md');
@@ -166,17 +173,36 @@
   let filteredPaletteActions = $derived(filterPaletteActions(basePaletteActions, paletteQuery));
 
   function handleKeydown(e: KeyboardEvent) {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    // Ignore input focus triggers except Esc
+    const targetEl = e.target as HTMLElement;
+    const isTyping = targetEl && (targetEl.tagName === 'INPUT' || targetEl.tagName === 'TEXTAREA');
+
+    if (isShortcutTriggered(e, 'Ctrl+K')) {
       e.preventDefault();
       isPaletteOpen = !isPaletteOpen;
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+    } else if (isShortcutTriggered(e, 'Ctrl+N')) {
       e.preventDefault();
       openCreateModal();
-    } else if (e.key === 'Escape') {
+    } else if (isShortcutTriggered(e, 'Shift+S') && !isTyping) {
+      e.preventDefault();
+      isStickyDrawerOpen = !isStickyDrawerOpen;
+    } else if (isShortcutTriggered(e, 'Shift+E') && !isTyping) {
+      e.preventDefault();
+      exportVaultJsonAction();
+    } else if (isShortcutTriggered(e, 'Shift+I') && !isTyping) {
+      e.preventDefault();
+      openImportModal();
+    } else if (isShortcutTriggered(e, '?') && !isTyping) {
+      e.preventDefault();
+      isShortcutsModalOpen = !isShortcutsModalOpen;
+    } else if (isShortcutTriggered(e, 'Esc')) {
       isPaletteOpen = false;
       isModalOpen = false;
       isRevisionModalOpen = false;
       isImportModalOpen = false;
+      isShortcutsModalOpen = false;
+      isAISummaryModalOpen = false;
+      isEncryptModalOpen = false;
     }
   }
 
@@ -246,6 +272,7 @@
     isEncryptModalOpen = false;
     isAISummaryModalOpen = false;
     isImportModalOpen = false;
+    isShortcutsModalOpen = false;
     editingNote = null;
     historyNote = null;
     targetEncryptNote = null;
@@ -431,6 +458,9 @@
       </button>
       <button type="button" onclick={() => isPaletteOpen = true} class="btn btn-secondary palette-btn" title="Open Quick Action Command Palette">
         ⚡ ⌘K Quick Actions
+      </button>
+      <button type="button" onclick={() => isShortcutsModalOpen = true} class="btn btn-secondary hotkeys-btn" title="Open Keyboard Shortcuts Cheat Sheet (?)">
+        ⌨️ Hotkeys (?)
       </button>
       <button type="button" onclick={openImportModal} class="btn btn-secondary" title="Batch Import Notes / Notebook">
         📤 Import Notes
@@ -1138,6 +1168,41 @@
           <button type="button" onclick={executeImportNotes} class="btn btn-primary" disabled={!importRawInput.trim()}>
             📤 Import to Notebook
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Keyboard Shortcuts Cheat Sheet Modal -->
+{#if isShortcutsModalOpen}
+  <div class="modal-backdrop fade-in">
+    <div class="modal-card card shortcuts-card">
+      <div class="modal-header">
+        <h2>⌨️ Keyboard Shortcuts Cheat Sheet</h2>
+        <button type="button" onclick={closeModal} class="close-btn">❌</button>
+      </div>
+
+      <div class="shortcuts-body">
+        {#each Object.entries(groupedShortcuts) as [category, items]}
+          <div class="shortcuts-group">
+            <h3>{category} Shortcuts</h3>
+            <div class="shortcuts-list">
+              {#each items as item}
+                <div class="shortcut-row">
+                  <div class="shortcut-info">
+                    <strong>{item.label}</strong>
+                    <span>{item.description}</span>
+                  </div>
+                  <kbd class="shortcut-kbd-big">{item.key}</kbd>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/each}
+
+        <div class="modal-actions">
+          <button type="button" onclick={closeModal} class="btn btn-secondary">Close</button>
         </div>
       </div>
     </div>
@@ -2100,5 +2165,73 @@
     padding: 6px;
     cursor: pointer;
     font-size: 13px;
+  }
+
+  /* Keyboard Shortcuts Cheat Sheet UI Styles */
+  .shortcuts-card {
+    max-width: 650px;
+  }
+
+  .shortcuts-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .shortcuts-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .shortcuts-group h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 4px;
+  }
+
+  .shortcuts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .shortcut-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+  }
+
+  .shortcut-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .shortcut-info strong {
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+
+  .shortcut-info span {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .shortcut-kbd-big {
+    background: rgba(6, 182, 212, 0.15);
+    border: 1px solid var(--accent-cyan);
+    color: var(--accent-cyan);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
   }
 </style>

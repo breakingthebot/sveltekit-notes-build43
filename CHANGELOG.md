@@ -5,6 +5,14 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-07-26
+
+### Added
+- Integrated **Keyboard Shortcuts Cheat Sheet & Quick Navigation Drawer** in `src/lib/services/shortcutService.ts` and `src/routes/+page.svelte`.
+- Added global keyboard shortcut listeners (`Ctrl+N`, `Ctrl+K`, `Shift+S`, `Shift+E`, `Shift+I`, `?`, `Esc`).
+- Added `⌨️ Hotkeys (?)` header button and interactive Keyboard Shortcuts Cheat Sheet modal dialog.
+- Added unit test suite in `src/lib/services/shortcutService.spec.ts`.
+
 ## [0.15.0] - 2026-07-26
 
 ### Added
