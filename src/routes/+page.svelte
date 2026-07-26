@@ -60,6 +60,12 @@
     getShortcutsByCategory,
     isShortcutTriggered
   } from '$lib/services/shortcutService';
+  import {
+    formatAudioDuration,
+    createAudioMemoPayload,
+    serializeAudioMemoToMarkdown,
+    type AudioMemoPayload
+  } from '$lib/services/voiceMemoService';
 
   let { data }: { data: PageData } = $props();
 
@@ -71,6 +77,14 @@
   let isAISummaryModalOpen = $state(false);
   let isImportModalOpen = $state(false);
   let isShortcutsModalOpen = $state(false);
+  let isVoiceModalOpen = $state(false);
+
+  let isRecording = $state(false);
+  let recordingTimer = $state(0);
+  let recordedMemos = $state<AudioMemoPayload[]>([]);
+  let recordingInterval: any = null;
+  let activeMediaRecorder: MediaRecorder | null = null;
+  let activeAudioChunks: Blob[] = [];
 
   let groupedShortcuts = $derived(getShortcutsByCategory());
 
@@ -131,6 +145,7 @@
   // Command palette static + dynamic note actions
   let basePaletteActions: PaletteAction[] = $derived([
     { id: 'act-new', title: '➕ Create New Note', category: 'Actions', icon: '➕', shortcut: 'Ctrl+N', actionKey: 'create_note' },
+    { id: 'act-voice', title: '🎙️ Record Voice Audio Memo', category: 'Actions', icon: '🎙️', actionKey: 'voice_memo' },
     { id: 'act-import', title: '📤 Batch Import Notes / Notebook', category: 'Actions', icon: '📤', actionKey: 'import_notes' },
     { id: 'act-json', title: '📥 Export Vault JSON Backup', category: 'Actions', icon: '📥', actionKey: 'export_json' },
     { id: 'act-md', title: '📄 Export All Notes Markdown', category: 'Actions', icon: '📄', actionKey: 'export_md' },
@@ -212,6 +227,8 @@
 
     if (action.actionKey === 'create_note') {
       openCreateModal();
+    } else if (action.actionKey === 'voice_memo') {
+      openVoiceModal();
     } else if (action.actionKey === 'import_notes') {
       openImportModal();
     } else if (action.actionKey === 'export_json') {
@@ -273,6 +290,7 @@
     isAISummaryModalOpen = false;
     isImportModalOpen = false;
     isShortcutsModalOpen = false;
+    isVoiceModalOpen = false;
     editingNote = null;
     historyNote = null;
     targetEncryptNote = null;
@@ -281,6 +299,68 @@
     encryptPasswordInput = '';
     encryptionErrorMessage = '';
     importRawInput = '';
+    if (isRecording) stopRecording();
+  }
+
+  function openVoiceModal() {
+    isVoiceModalOpen = true;
+  }
+
+  async function startRecording() {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices) return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      activeMediaRecorder = new MediaRecorder(stream);
+      activeAudioChunks = [];
+      recordingTimer = 0;
+      isRecording = true;
+
+      recordingInterval = setInterval(() => {
+        recordingTimer += 1;
+      }, 1000);
+
+      activeMediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) activeAudioChunks.push(e.data);
+      };
+
+      activeMediaRecorder.onstop = () => {
+        clearInterval(recordingInterval);
+        isRecording = false;
+
+        const audioBlob = new Blob(activeAudioChunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          const memo = createAudioMemoPayload(base64, recordingTimer);
+          recordedMemos = [memo, ...recordedMemos];
+        };
+        reader.readAsDataURL(audioBlob);
+
+        // Stop all audio tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      activeMediaRecorder.start();
+    } catch (err) {
+      console.error('Microphone access error:', err);
+    }
+  }
+
+  function stopRecording() {
+    if (activeMediaRecorder && activeMediaRecorder.state !== 'inactive') {
+      activeMediaRecorder.stop();
+    }
+  }
+
+  function attachMemoToNote(memo: AudioMemoPayload) {
+    const serialized = serializeAudioMemoToMarkdown(memo);
+    formContent = formContent ? `${formContent}\n${serialized}` : serialized;
+  }
+
+  function attachMemoToSticky(memo: AudioMemoPayload) {
+    createStickyNote(`🎙️ ${memo.title} (${memo.durationFormatted})`, '#cff4fc');
+    stickies = getStickyNotes();
   }
 
   function openImportModal() {
@@ -455,6 +535,9 @@
     <div class="header-actions">
       <button type="button" onclick={() => isStickyDrawerOpen = !isStickyDrawerOpen} class="btn btn-secondary sticky-btn" class:active={isStickyDrawerOpen} title="Toggle Quick Scratchpad Sticky Panel">
         📌 Sticky Pad ({stickies.length})
+      </button>
+      <button type="button" onclick={openVoiceModal} class="btn btn-secondary voice-btn" title="Record Voice Audio Memo">
+        🎙️ Voice Memo
       </button>
       <button type="button" onclick={() => isPaletteOpen = true} class="btn btn-secondary palette-btn" title="Open Quick Action Command Palette">
         ⚡ ⌘K Quick Actions
@@ -1200,6 +1283,68 @@
             </div>
           </div>
         {/each}
+
+        <div class="modal-actions">
+          <button type="button" onclick={closeModal} class="btn btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Voice Memo Recording Scratchpad Modal -->
+{#if isVoiceModalOpen}
+  <div class="modal-backdrop fade-in">
+    <div class="modal-card card voice-modal-card">
+      <div class="modal-header">
+        <h2>🎙️ Voice Memo Audio Scratchpad</h2>
+        <button type="button" onclick={closeModal} class="close-btn">❌</button>
+      </div>
+
+      <div class="voice-modal-body">
+        <!-- Live Recording Console -->
+        <div class="voice-console card" class:recording-active={isRecording}>
+          {#if isRecording}
+            <div class="recording-indicator blink-pulse">
+              <span class="red-dot">🔴</span>
+              <strong>Recording Audio... ({formatAudioDuration(recordingTimer)})</strong>
+            </div>
+            <button type="button" onclick={stopRecording} class="btn btn-secondary danger">
+              ⏹️ Stop Recording
+            </button>
+          {:else}
+            <p class="subtitle">Record hands-free audio notes directly from your microphone.</p>
+            <button type="button" onclick={startRecording} class="btn btn-primary record-start-btn">
+              🎙️ Start New Voice Recording
+            </button>
+          {/if}
+        </div>
+
+        <!-- Recorded Audio Memos List -->
+        <div class="voice-memos-section">
+          <h3>📻 Recorded Voice Memos ({recordedMemos.length})</h3>
+          <div class="voice-memos-list">
+            {#each recordedMemos as memo (memo.id)}
+              <div class="voice-memo-card card">
+                <div class="memo-head">
+                  <strong>🎙️ {memo.title}</strong>
+                  <span class="memo-time">⏱️ {memo.durationFormatted}</span>
+                </div>
+                <audio controls src={memo.audioBase64} class="audio-player"></audio>
+                <div class="memo-actions">
+                  <button type="button" onclick={() => attachMemoToSticky(memo)} class="btn btn-secondary btn-sm">
+                    📌 Attach to Sticky Pad
+                  </button>
+                  <button type="button" onclick={() => { openCreateModal(); attachMemoToNote(memo); }} class="btn btn-secondary btn-sm">
+                    ➕ Create Note from Voice Memo
+                  </button>
+                </div>
+              </div>
+            {:else}
+              <div class="muted-text">No audio memos recorded yet in this session. Click Start Recording above!</div>
+            {/each}
+          </div>
+        </div>
 
         <div class="modal-actions">
           <button type="button" onclick={closeModal} class="btn btn-secondary">Close</button>
@@ -2233,5 +2378,105 @@
     font-weight: 700;
     padding: 4px 10px;
     border-radius: 6px;
+  }
+
+  /* Voice Memo Modal UI Styles */
+  .voice-modal-card {
+    max-width: 600px;
+  }
+
+  .voice-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .voice-console {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px dashed var(--border-color);
+  }
+
+  .voice-console.recording-active {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .recording-indicator {
+    font-size: 15px;
+    color: #fca5a5;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .blink-pulse {
+    animation: blinkPulse 1.2s infinite ease-in-out;
+  }
+
+  @keyframes blinkPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .voice-memos-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .voice-memos-section h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+  }
+
+  .voice-memos-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .voice-memo-card {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .memo-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+  }
+
+  .memo-time {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .audio-player {
+    width: 100%;
+    height: 36px;
+    border-radius: var(--radius-sm);
+  }
+
+  .memo-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .btn-sm {
+    font-size: 11px;
+    padding: 4px 8px;
   }
 </style>

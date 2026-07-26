@@ -5,6 +5,15 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-07-26
+
+### Added
+- Integrated **Note Audio & Voice Memo Recorder Scratchpad** in `src/lib/services/voiceMemoService.ts` and `src/routes/+page.svelte`.
+- Added Browser MediaRecorder API audio capture console with live recording timer (`🔴 Recording 00:05...`).
+- Added interactive HTML `<audio controls>` player and 1-click attachment buttons (`📌 Attach to Sticky Pad` and `➕ Create Note from Voice Memo`).
+- Added `🎙️ Voice Memo` header button and `act-voice` command in `Ctrl+K` Command Palette.
+- Added unit test suite in `src/lib/services/voiceMemoService.spec.ts`.
+
 ## [0.16.0] - 2026-07-26
 
 ### Added
