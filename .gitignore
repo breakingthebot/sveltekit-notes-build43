@@ -12,4 +12,5 @@ dist/
 venv/
 __pycache__/
 
+.vercel/
 .vercel
