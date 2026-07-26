@@ -36,6 +36,12 @@
     THEMES,
     type ThemeConfig
   } from '$lib/services/themeService';
+  import {
+    sortNotes,
+    getSortOptions,
+    SORT_OPTIONS,
+    type SortCriteria
+  } from '$lib/services/sortingService';
 
   let { data }: { data: PageData } = $props();
 
@@ -44,8 +50,11 @@
   let isRevisionModalOpen = $state(false);
   let isStickyDrawerOpen = $state(false);
   let currentThemeKey = $state('default');
+  let currentSort = $state<SortCriteria>('pinned');
 
   let availableThemes = $derived(getAvailableThemes());
+  let sortOptionsList = $derived(getSortOptions());
+  let displayNotes = $derived(sortNotes(data.notes, currentSort));
   let stickies: StickyNote[] = $state(getStickyNotes());
   let newStickyText = $state('');
   let newStickyColor = $state('#fef08a');
@@ -101,6 +110,15 @@
       actionKey: `theme_${t.key}`
     })),
 
+    // Sort palette actions
+    ...sortOptionsList.map(s => ({
+      id: `srt-${s.key}`,
+      title: `📊 Sort Notes: ${s.label}`,
+      category: 'Sorting',
+      icon: s.icon,
+      actionKey: `sort_${s.key}`
+    })),
+
     { id: 'fld-work', title: '💼 Filter Work Folder', category: 'Folders', icon: '💼', actionKey: 'folder_work' },
     { id: 'fld-personal', title: '👤 Filter Personal Folder', category: 'Folders', icon: '👤', actionKey: 'folder_personal' },
     { id: 'fld-ideas', title: '💡 Filter Ideas Folder', category: 'Folders', icon: '💡', actionKey: 'folder_ideas' },
@@ -149,6 +167,9 @@
     } else if (action.actionKey.startsWith('theme_')) {
       const thmKey = action.actionKey.replace('theme_', '');
       selectTheme(thmKey);
+    } else if (action.actionKey.startsWith('sort_')) {
+      const sKey = action.actionKey.replace('sort_', '') as SortCriteria;
+      currentSort = sKey;
     } else if (action.actionKey.startsWith('folder_')) {
       const fName = action.actionKey.replace('folder_', '');
       window.location.href = `?folder=${fName}`;
@@ -402,6 +423,21 @@
         {/each}
       </div>
 
+      <div class="sort-switcher-pills">
+        <span class="sort-label">📊 Sort By:</span>
+        {#each sortOptionsList as opt}
+          <button 
+            type="button" 
+            onclick={() => currentSort = opt.key}
+            class="sort-pill"
+            class:active={currentSort === opt.key}
+            title={opt.description}
+          >
+            {opt.icon} {opt.label}
+          </button>
+        {/each}
+      </div>
+
       <div class="tag-filter-pills">
         <a 
           href="?tag=all{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}{data.showTrash ? '&trash=true' : ''}" 
@@ -447,7 +483,7 @@
 
   <!-- Notes Grid Section -->
   <section class="notes-grid">
-    {#each data.notes as note (note.id)}
+    {#each displayNotes as note (note.id)}
       {@const analytics = analyzeNoteText(note.content)}
       <article class="note-card card fade-in" style="border-top: 4px solid {note.color};">
         <div class="note-head">
@@ -1540,5 +1576,38 @@
     background: rgba(6, 182, 212, 0.2);
     color: var(--accent-cyan);
     border-color: var(--accent-cyan);
+  }
+
+  /* Sort Switcher Styles */
+  .sort-switcher-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .sort-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-right: 4px;
+  }
+
+  .sort-pill {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .sort-pill.active, .sort-pill:hover {
+    background: rgba(168, 85, 247, 0.2);
+    color: var(--accent-purple);
+    border-color: var(--accent-purple);
   }
 </style>
