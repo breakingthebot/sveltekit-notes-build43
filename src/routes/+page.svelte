@@ -30,6 +30,12 @@
     updateStickyNote,
     type StickyNote
   } from '$lib/services/stickyNotesService';
+  import {
+    getAvailableThemes,
+    getThemeByKey,
+    THEMES,
+    type ThemeConfig
+  } from '$lib/services/themeService';
 
   let { data }: { data: PageData } = $props();
 
@@ -37,7 +43,9 @@
   let isPaletteOpen = $state(false);
   let isRevisionModalOpen = $state(false);
   let isStickyDrawerOpen = $state(false);
+  let currentThemeKey = $state('default');
 
+  let availableThemes = $derived(getAvailableThemes());
   let stickies: StickyNote[] = $state(getStickyNotes());
   let newStickyText = $state('');
   let newStickyColor = $state('#fef08a');
@@ -65,6 +73,17 @@
       : []
   );
 
+  function selectTheme(key: string) {
+    currentThemeKey = key;
+    if (typeof document !== 'undefined') {
+      if (key === 'default') {
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        document.documentElement.dataset.theme = key;
+      }
+    }
+  }
+
   // Command palette static + dynamic note actions
   let basePaletteActions: PaletteAction[] = $derived([
     { id: 'act-new', title: '➕ Create New Note', category: 'Actions', icon: '➕', shortcut: 'Ctrl+N', actionKey: 'create_note' },
@@ -72,6 +91,16 @@
     { id: 'act-md', title: '📄 Export All Notes Markdown', category: 'Actions', icon: '📄', actionKey: 'export_md' },
     { id: 'act-fav', title: '⭐ View Starred Favorites', category: 'Filters', icon: '⭐', actionKey: 'filter_fav' },
     { id: 'act-trash', title: '🗑️ Open Trash Bin Recovery', category: 'Filters', icon: '🗑️', actionKey: 'filter_trash' },
+    
+    // Theme palette actions
+    ...availableThemes.map(t => ({
+      id: `thm-${t.key}`,
+      title: `🎨 Switch Theme: ${t.name}`,
+      category: 'Themes',
+      icon: t.icon,
+      actionKey: `theme_${t.key}`
+    })),
+
     { id: 'fld-work', title: '💼 Filter Work Folder', category: 'Folders', icon: '💼', actionKey: 'folder_work' },
     { id: 'fld-personal', title: '👤 Filter Personal Folder', category: 'Folders', icon: '👤', actionKey: 'folder_personal' },
     { id: 'fld-ideas', title: '💡 Filter Ideas Folder', category: 'Folders', icon: '💡', actionKey: 'folder_ideas' },
@@ -117,6 +146,9 @@
       window.location.href = '?fav=true';
     } else if (action.actionKey === 'filter_trash') {
       window.location.href = '?trash=true';
+    } else if (action.actionKey.startsWith('theme_')) {
+      const thmKey = action.actionKey.replace('theme_', '');
+      selectTheme(thmKey);
     } else if (action.actionKey.startsWith('folder_')) {
       const fName = action.actionKey.replace('folder_', '');
       window.location.href = `?folder=${fName}`;
@@ -353,25 +385,42 @@
 
   <!-- Filter & Search Toolbar -->
   <section class="toolbar-section card">
-    <!-- Tag Filter Pills -->
-    <div class="tag-filter-pills">
-      <a 
-        href="?tag=all{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}{data.showTrash ? '&trash=true' : ''}" 
-        class="filter-pill"
-        class:active={data.selectedTag === 'all'}
-      >
-        🌟 All Tags ({data.notes.length})
-      </a>
+    <!-- Tag & Theme Filter Pills -->
+    <div class="toolbar-left">
+      <div class="theme-switcher-pills">
+        <span class="theme-label">🎨 Theme:</span>
+        {#each availableThemes as theme}
+          <button 
+            type="button" 
+            onclick={() => selectTheme(theme.key)}
+            class="theme-pill"
+            class:active={currentThemeKey === theme.key}
+            title={theme.description}
+          >
+            {theme.icon} {theme.name}
+          </button>
+        {/each}
+      </div>
 
-      {#each data.tags as tag}
+      <div class="tag-filter-pills">
         <a 
-          href="?tag={tag}{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}{data.showTrash ? '&trash=true' : ''}" 
+          href="?tag=all{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}{data.showTrash ? '&trash=true' : ''}" 
           class="filter-pill"
-          class:active={data.selectedTag === tag}
+          class:active={data.selectedTag === 'all'}
         >
-          🏷️ {tag}
+          🌟 All Tags ({data.notes.length})
         </a>
-      {/each}
+
+        {#each data.tags as tag}
+          <a 
+            href="?tag={tag}{data.selectedFolder && data.selectedFolder !== 'all' ? `&folder=${data.selectedFolder}` : ''}{data.showTrash ? '&trash=true' : ''}" 
+            class="filter-pill"
+            class:active={data.selectedTag === tag}
+          >
+            🏷️ {tag}
+          </a>
+        {/each}
+      </div>
     </div>
 
     <!-- Search Form -->
@@ -1452,5 +1501,44 @@
     font-weight: 600;
     color: #0f172a;
     line-height: 1.4;
+  }
+
+  /* Theme Switcher Styles */
+  .toolbar-left {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .theme-switcher-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .theme-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-right: 4px;
+  }
+
+  .theme-pill {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .theme-pill.active, .theme-pill:hover {
+    background: rgba(6, 182, 212, 0.2);
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
   }
 </style>

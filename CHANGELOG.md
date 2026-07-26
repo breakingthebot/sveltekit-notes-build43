@@ -5,6 +5,15 @@ All notable changes to **SvelteKit Notes Vault** will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-07-26
+
+### Added
+- Integrated **Custom Visual Themes & Dark Glassmorphic Theme Switcher** in `src/lib/services/themeService.ts`, `src/app.css`, and `src/routes/+page.svelte`.
+- Added 5 theme presets (`Cyan Glassmorphic`, `Cyberpunk Neon`, `Emerald Forest`, `Midnight OLED`, `Sunset Amber`).
+- Added CSS dataset variable overrides (`[data-theme="..."]`) in `src/app.css` for dynamic theme changes.
+- Added `🎨 Theme` selector pill bar in main notebook toolbar and Command Palette theme switching triggers (`⚡ ⌘K -> 🎨 Switch Theme`).
+- Added unit tests in `src/lib/services/themeService.spec.ts`.
+
 ## [0.9.0] - 2026-07-26
 
 ### Added
